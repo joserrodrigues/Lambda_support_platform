@@ -57,6 +57,42 @@ npm run dev                # http://127.0.0.1:3000
 Para simular o Lambda + API Gateway: `cp env.local.json.example env.local.json` e
 `npm run sam:local` (requer AWS SAM CLI e Docker; usa a rede `school-guardian-net` do compose).
 
+## Modelo de dados
+
+Migrations em `src/database/migrations/` (Umzug), aplicadas com `npm run db:migrate`.
+
+| Migration                           | Descrição                                    |
+| ----------------------------------- | -------------------------------------------- |
+| `20261001000000-create-users`       | tabela `users`                               |
+| `20261001000100-add-login-to-users` | coluna `login` (única) em `users`            |
+| `20261001000200-create-tickets`     | tabela `tickets`                             |
+| `20261001000300-create-posts`       | tabela `posts` (FK para `tickets` e `users`) |
+
+**users** — `id` (UUID), `name`, `email` (único), `login` (único), `password_hash`, `role`,
+`active`, `token_version`, `last_login_at`, `created_at`, `updated_at`, `deleted_at`.
+
+**tickets**
+
+| Coluna                  | Tipo         | Campo de negócio      |
+| ----------------------- | ------------ | --------------------- |
+| `id`                    | UUID         | id                    |
+| `school_id`             | INT UNSIGNED | id escola             |
+| `status`                | VARCHAR(30)  | status                |
+| `dev_status`            | VARCHAR(30)  | status dev            |
+| `entry_type`            | VARCHAR(30)  | tipo entrada          |
+| `error_type`            | VARCHAR(50)  | tipo erro             |
+| `support_level_2`       | TINYINT      | suporte nível 2 (0/1) |
+| `priority`              | VARCHAR(20)  | prioridade            |
+| `sla_type`              | VARCHAR(30)  | tipo SLA              |
+| `response_at`           | DATETIME     | data resposta         |
+| `technical_response_at` | DATETIME     | data resposta técnica |
+| `school_responsible`    | VARCHAR(120) | resp. escola          |
+| `created_at`            | DATETIME     | data criação          |
+| `updated_at`            | DATETIME     | data alteração        |
+
+**posts** — `id` (UUID), `ticket_id` (FK `tickets`, `ON DELETE CASCADE`), `user_id`
+(FK `users`, autor), `content` (TEXT), `created_at`, `updated_at`.
+
 ## Endpoints
 
 | Método | Rota           | Acesso                 | Descrição                               |

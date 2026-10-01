@@ -5,6 +5,7 @@ export interface UserEntity {
   id: string;
   name: string;
   email: string;
+  login: string;
   role: UserRole;
   active: boolean;
   tokenVersion: number;
@@ -20,12 +21,16 @@ export interface UserWithPassword extends UserEntity {
 export interface CreateUserData {
   name: string;
   email: string;
+  login: string;
   passwordHash: string;
   role: UserRole;
 }
 
 export type UpdateUserData = Partial<
-  Pick<UserWithPassword, 'name' | 'email' | 'passwordHash' | 'role' | 'active' | 'lastLoginAt'>
+  Pick<
+    UserWithPassword,
+    'name' | 'email' | 'login' | 'passwordHash' | 'role' | 'active' | 'lastLoginAt'
+  >
 > & { incrementTokenVersion?: boolean };
 
 export interface AuthenticatedUser {

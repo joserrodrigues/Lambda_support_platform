@@ -7,12 +7,21 @@ export const emailSchema = z
   .email()
   .max(254)
   .transform((value) => value.trim().toLowerCase());
+// Login: minúsculo, 3-60 caracteres, apenas letras, números, ponto, hífen e sublinhado.
+export const loginSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(60)
+  .regex(/^[a-z0-9._-]+$/, 'Use apenas letras, números, ponto, hífen ou sublinhado');
 const nameSchema = z.string().trim().min(2).max(120);
 
 // `strictObject` rejeita campos desconhecidos (proteção contra mass assignment).
 export const createUserBodySchema = z.strictObject({
   name: nameSchema,
   email: emailSchema,
+  login: loginSchema,
   password: passwordSchema,
   role: z.enum(USER_ROLES).default('requester'),
 });
@@ -21,6 +30,7 @@ export const updateUserBodySchema = z
   .strictObject({
     name: nameSchema.optional(),
     email: emailSchema.optional(),
+    login: loginSchema.optional(),
     password: passwordSchema.optional(),
     currentPassword: z.string().min(1).max(128).optional(),
     role: z.enum(USER_ROLES).optional(),
@@ -41,6 +51,7 @@ export const publicUserSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   email: z.string(),
+  login: z.string(),
   role: z.enum(USER_ROLES),
   active: z.boolean(),
   lastLoginAt: z.date().nullable(),

@@ -14,6 +14,7 @@ export class User extends Model<InferAttributes<User>, InferCreationAttributes<U
   declare id: CreationOptional<string>;
   declare name: string;
   declare email: string;
+  declare login: string;
   declare passwordHash: string;
   declare role: CreationOptional<UserRole>;
   declare active: CreationOptional<boolean>;
@@ -31,6 +32,7 @@ export function initUserModel(sequelize: Sequelize): typeof User {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       name: { type: DataTypes.STRING(120), allowNull: false },
       email: { type: DataTypes.STRING(254), allowNull: false, unique: true },
+      login: { type: DataTypes.STRING(60), allowNull: false, unique: true },
       passwordHash: { type: DataTypes.STRING(255), allowNull: false },
       role: { type: DataTypes.ENUM(...USER_ROLES), allowNull: false, defaultValue: 'requester' },
       active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },

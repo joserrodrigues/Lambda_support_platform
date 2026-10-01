@@ -39,7 +39,7 @@ describe('SequelizeUserRepository', () => {
 
       const result = await repo.findById(data.id);
 
-      expect(result).toMatchObject({ id: data.id, email: data.email });
+      expect(result).toMatchObject({ id: data.id, email: data.email, login: data.login });
       expect(result).not.toHaveProperty('passwordHash');
     });
 
@@ -95,6 +95,25 @@ describe('SequelizeUserRepository', () => {
     });
   });
 
+  describe('loginExists', () => {
+    it('should include soft deleted rows', async () => {
+      const count = jest.spyOn(User, 'count').mockResolvedValue(1);
+
+      await expect(repo.loginExists('maria.silva')).resolves.toBe(true);
+      expect(count).toHaveBeenCalledWith({ where: { login: 'maria.silva' }, paranoid: false });
+    });
+
+    it('should exclude the given id', async () => {
+      const count = jest.spyOn(User, 'count').mockResolvedValue(0);
+
+      await expect(repo.loginExists('maria.silva', 'id-1')).resolves.toBe(false);
+      expect(count).toHaveBeenCalledWith({
+        where: { login: 'maria.silva', id: { [Op.ne]: 'id-1' } },
+        paranoid: false,
+      });
+    });
+  });
+
   it('should list with limit, offset and ordering', async () => {
     const { instance } = buildModel();
     const findAndCountAll = jest
@@ -118,6 +137,7 @@ describe('SequelizeUserRepository', () => {
     const input = {
       name: data.name,
       email: data.email,
+      login: data.login,
       passwordHash: data.passwordHash,
       role: data.role,
     };

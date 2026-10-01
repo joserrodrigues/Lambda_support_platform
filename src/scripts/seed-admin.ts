@@ -5,11 +5,12 @@ import { SequelizeUserRepository } from '../modules/users/user.repository';
 import { createUserBodySchema } from '../modules/users/user.schemas';
 import { UserService } from '../modules/users/user.service';
 
-/** Cria o primeiro administrador a partir de ADMIN_NAME / ADMIN_EMAIL / ADMIN_PASSWORD. */
+/** Cria o primeiro administrador a partir de ADMIN_NAME / ADMIN_EMAIL / ADMIN_LOGIN / ADMIN_PASSWORD. */
 async function run(): Promise<void> {
   const input = createUserBodySchema.parse({
     name: process.env.ADMIN_NAME ?? 'Administrador',
     email: process.env.ADMIN_EMAIL,
+    login: process.env.ADMIN_LOGIN ?? 'admin',
     password: process.env.ADMIN_PASSWORD,
     role: 'admin',
   });

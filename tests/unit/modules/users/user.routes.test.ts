@@ -14,6 +14,7 @@ describe('User routes', () => {
   const validUser = {
     name: 'Maria Silva',
     email: 'maria@escola.com',
+    login: 'Maria.Silva',
     password: 'senha-super-forte',
     role: 'agent',
   };
@@ -38,6 +39,7 @@ describe('User routes', () => {
       expect(res.json()).toMatchObject({
         name: 'Maria Silva',
         email: 'maria@escola.com',
+        login: 'maria.silva',
         role: 'agent',
       });
       expect(res.body).not.toMatch(/password|tokenVersion/i);
@@ -61,6 +63,35 @@ describe('User routes', () => {
         url: '/users',
         headers: bearer(token),
         payload: { ...validUser, tokenVersion: 99 },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it.each([
+      ['too short', 'ab'],
+      ['with spaces', 'maria silva'],
+      ['with special characters', "maria';--"],
+      ['too long', 'a'.repeat(61)],
+    ])('should reject an invalid login (%s)', async (_case, login) => {
+      const { token } = await loginAs(ctx, 'admin');
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/users',
+        headers: bearer(token),
+        payload: { ...validUser, login },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json<{ details: { field: string }[] }>().details[0]?.field).toBe('login');
+    });
+
+    it('should require the login', async () => {
+      const { token } = await loginAs(ctx, 'admin');
+      const { login: _login, ...withoutLogin } = validUser;
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/users',
+        headers: bearer(token),
+        payload: withoutLogin,
       });
       expect(res.statusCode).toBe(400);
     });

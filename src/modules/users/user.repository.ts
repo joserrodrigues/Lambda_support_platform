@@ -8,6 +8,8 @@ export interface UserRepository {
   findByEmailWithPassword(email: string): Promise<UserWithPassword | null>;
   /** Considera também registros excluídos logicamente, para manter o e-mail único. */
   emailExists(email: string, excludeId?: string): Promise<boolean>;
+  /** Considera também registros excluídos logicamente, para manter o login único. */
+  loginExists(login: string, excludeId?: string): Promise<boolean>;
   list(params: { limit: number; offset: number }): Promise<{ rows: UserEntity[]; count: number }>;
   create(data: CreateUserData): Promise<UserEntity>;
   update(id: string, data: UpdateUserData): Promise<UserEntity | null>;
@@ -19,6 +21,7 @@ function toEntity(user: User): UserEntity {
     id: user.id,
     name: user.name,
     email: user.email,
+    login: user.login,
     role: user.role,
     active: user.active,
     tokenVersion: user.tokenVersion,
@@ -50,6 +53,12 @@ export class SequelizeUserRepository implements UserRepository {
 
   async emailExists(email: string, excludeId?: string): Promise<boolean> {
     const where: WhereOptions<User> = excludeId ? { email, id: { [Op.ne]: excludeId } } : { email };
+    const count = await User.count({ where, paranoid: false });
+    return count > 0;
+  }
+
+  async loginExists(login: string, excludeId?: string): Promise<boolean> {
+    const where: WhereOptions<User> = excludeId ? { login, id: { [Op.ne]: excludeId } } : { login };
     const count = await User.count({ where, paranoid: false });
     return count > 0;
   }

@@ -26,11 +26,17 @@ describe('UserService', () => {
       const result = await service.create({
         name: 'Maria',
         email: 'maria@escola.com',
+        login: 'maria.silva',
         password: 'senha-super-forte',
         role: 'agent',
       });
 
-      expect(result).toMatchObject({ name: 'Maria', email: 'maria@escola.com', role: 'agent' });
+      expect(result).toMatchObject({
+        name: 'Maria',
+        email: 'maria@escola.com',
+        login: 'maria.silva',
+        role: 'agent',
+      });
       expect(repo.users.get(result.id)?.passwordHash).toBe('hashed:senha-super-forte');
     });
 
@@ -41,10 +47,25 @@ describe('UserService', () => {
         service.create({
           name: 'Maria',
           email: 'maria@escola.com',
+          login: 'maria.silva',
           password: 'senha-super-forte',
           role: 'requester',
         }),
-      ).rejects.toMatchObject({ statusCode: 409 });
+      ).rejects.toMatchObject({ statusCode: 409, message: 'E-mail já cadastrado' });
+    });
+
+    it('should throw 409 when the login already exists', async () => {
+      repo.seed({ login: 'maria.silva' });
+
+      await expect(
+        service.create({
+          name: 'Maria',
+          email: 'maria@escola.com',
+          login: 'maria.silva',
+          password: 'senha-super-forte',
+          role: 'requester',
+        }),
+      ).rejects.toMatchObject({ statusCode: 409, message: 'Login já cadastrado' });
     });
   });
 
@@ -172,6 +193,29 @@ describe('UserService', () => {
       await expect(
         service.update(user.id, { email: 'taken@escola.com' }, { id: user.id, role: 'requester' }),
       ).rejects.toMatchObject({ statusCode: 409 });
+    });
+
+    it('should change the login when it is available', async () => {
+      const user = repo.seed();
+      await expect(
+        service.update(user.id, { login: 'novo.login' }, { id: user.id, role: 'requester' }),
+      ).resolves.toMatchObject({ login: 'novo.login' });
+    });
+
+    it('should throw 409 when changing to a login used by another user', async () => {
+      repo.seed({ login: 'ocupado' });
+      const user = repo.seed();
+
+      await expect(
+        service.update(user.id, { login: 'ocupado' }, { id: user.id, role: 'requester' }),
+      ).rejects.toMatchObject({ statusCode: 409, message: 'Login já cadastrado' });
+    });
+
+    it('should accept keeping the same login', async () => {
+      const user = repo.seed({ login: 'mesmo.login' });
+      await expect(
+        service.update(user.id, { login: 'mesmo.login' }, { id: user.id, role: 'requester' }),
+      ).resolves.toMatchObject({ login: 'mesmo.login' });
     });
 
     it('should accept keeping the same e-mail', async () => {

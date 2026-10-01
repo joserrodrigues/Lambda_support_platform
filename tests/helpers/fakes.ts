@@ -64,6 +64,12 @@ export class InMemoryUserRepository implements UserRepository {
     );
   }
 
+  loginExists(login: string, excludeId?: string) {
+    return Promise.resolve(
+      [...this.users.values()].some((u) => u.login === login && u.id !== excludeId),
+    );
+  }
+
   list({ limit, offset }: { limit: number; offset: number }) {
     const all = [...this.users.values()].filter((u) => !this.deleted.has(u.id));
     return Promise.resolve({

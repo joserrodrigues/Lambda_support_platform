@@ -9,6 +9,7 @@ export function toPublicUser(user: UserEntity): PublicUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    login: user.login,
     role: user.role,
     active: user.active,
     lastLoginAt: user.lastLoginAt,
@@ -37,10 +38,14 @@ export class UserService {
     if (await this.users.emailExists(input.email)) {
       throw Errors.conflict('E-mail já cadastrado');
     }
+    if (await this.users.loginExists(input.login)) {
+      throw Errors.conflict('Login já cadastrado');
+    }
     const passwordHash = await this.hasher.hash(input.password);
     const user = await this.users.create({
       name: input.name,
       email: input.email,
+      login: input.login,
       passwordHash,
       role: input.role,
     });
@@ -89,6 +94,13 @@ export class UserService {
         throw Errors.conflict('E-mail já cadastrado');
       }
       changes.email = input.email;
+    }
+
+    if (input.login !== undefined && input.login !== current.login) {
+      if (await this.users.loginExists(input.login, id)) {
+        throw Errors.conflict('Login já cadastrado');
+      }
+      changes.login = input.login;
     }
 
     if (input.active !== undefined) {
