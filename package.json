@@ -1,0 +1,66 @@
+{
+  "name": "school-guardian-support-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "School Guardian - plataforma de gerenciamento de tickets (Fastify + Sequelize + AWS Lambda/SAM)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "db:up": "docker compose up -d mysql",
+    "db:down": "docker compose down",
+    "db:migrate": "tsx --env-file-if-exists=.env src/scripts/migrate.ts up",
+    "db:migrate:undo": "tsx --env-file-if-exists=.env src/scripts/migrate.ts down",
+    "db:seed:admin": "tsx --env-file-if-exists=.env src/scripts/seed-admin.ts",
+    "sam:build": "sam build",
+    "sam:local": "sam build && sam local start-api --env-vars env.local.json --docker-network school-guardian-net",
+    "sam:deploy": "sam build && sam deploy"
+  },
+  "dependencies": {
+    "@fastify/aws-lambda": "^6.4.1",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/sensible": "^6.0.6",
+    "@fastify/swagger": "^9.9.1",
+    "fastify": "^5.12.5",
+    "fastify-plugin": "^6.0.0",
+    "fastify-type-provider-zod": "^7.0.0",
+    "mysql2": "^3.24.5",
+    "openapi-types": "^12.1.3",
+    "sequelize": "^6.37.8",
+    "umzug": "^3.8.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/aws-lambda": "^8.10.164",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.4",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jest": "^30.5.2",
+    "pino-pretty": "^13.1.3",
+    "prettier": "^3.9.9",
+    "ts-jest": "^29.4.14",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

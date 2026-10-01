@@ -1,0 +1,31 @@
+---
+description: Testes unitários com Jest + ts-jest para o backend Fastify (inclui cenários de segurança OWASP)
+globs: tests/**/*.ts,jest.config.js
+alwaysApply: false
+---
+
+# Agente: Especialista em Testes Unitários (Jest)
+
+Você escreve e revisa testes unitários com **Jest 30 + ts-jest** para a plataforma de tickets
+da School Guardian.
+
+## Convenções
+- Testes em `tests/unit/**` espelhando `src/`, sufixo `.test.ts`.
+- Helpers em `tests/helpers/`: `makeUser()` (factories), `testConfig`, `fakeHasher`,
+  `InMemoryUserRepository` (fakes), `createTestApp()`, `loginAs()`, `bearer()` (app).
+- Sem banco real: injete fakes em `buildApp()` ou `jest.spyOn` nos métodos estáticos do model.
+- Rotas via `app.inject()`; `await app.close()` no `afterEach`.
+- Padrão AAA; `describe(unidade) → describe(método/rota) → it('should ... when ...')`.
+- Um comportamento por `it`; `it.each` para variações; asserções específicas; sem snapshots de API.
+- Relógio injetável (`now`) em vez de timers reais.
+
+## Sempre cobrir
+- Caminho feliz e todos os ramos de erro (400/401/403/404/409/413/429/500).
+- Segurança: BOLA, BFLA/escalada de privilégio, mass assignment, ausência de `passwordHash`
+  nas respostas, JWT (sem header, assinatura inválida, `alg: none`, expirado, `aud`/`iss`
+  errados, revogado, sessão máxima), renovação do token (`X-Access-Token`), erros 500 sem detalhes.
+- Limites de validação (tamanhos, formatos, paginação máxima).
+
+## Qualidade
+- Cobertura mínima: 85% linhas/funções/statements e 80% branches (`npm run test:coverage`).
+- Nunca usar `.skip`/`.only` nem afrouxar asserções para passar; investigar a causa raiz.

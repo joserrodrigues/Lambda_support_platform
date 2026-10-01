@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: School Guardian - Support Platform API (Fastify + Sequelize em AWS Lambda)
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+  DbHost:
+    Type: String
+    Description: Endpoint do Amazon RDS (MySQL) ou do RDS Proxy
+  DbPort:
+    Type: String
+    Default: '3306'
+  DbName:
+    Type: String
+    Default: school_guardian_support
+  DbSecretArn:
+    Type: String
+    Description: ARN do segredo no Secrets Manager com as chaves "username" e "password" do banco
+  JwtSecretArn:
+    Type: String
+    Description: ARN do segredo no Secrets Manager contendo a chave "jwtSecret"
+  CorsOrigins:
+    Type: String
+    Default: ''
+    Description: Origens permitidas separadas por vírgula
+  SubnetIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Subnets privadas para acesso ao RDS (vazio = Lambda fora de VPC)
+  SecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: ''
+
+Conditions:
+  UseVpc: !Not [!Equals [!Join ['', !Ref SubnetIds], '']]
+  IsProd: !Equals [!Ref Stage, prod]
+
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures: [arm64]
+    MemorySize: 1024
+    Timeout: 15
+    Tracing: Active
+    Environment:
+      Variables:
+        NODE_ENV: production
+        NODE_OPTIONS: --enable-source-maps
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      EndpointConfiguration:
+        Type: REGIONAL
+      TracingEnabled: true
+      # Throttling no API Gateway é a principal proteção contra abuso (OWASP API4).
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingRateLimit: 50
+          ThrottlingBurstLimit: 100
+          LoggingLevel: ERROR
+          MetricsEnabled: true
+          DataTraceEnabled: false
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","method":"$context.httpMethod","path":"$context.resourcePath","status":"$context.status","latency":"$context.responseLatency","userAgent":"$context.identity.userAgent"}'
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              X-Content-Type-Options: "'nosniff'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              X-Content-Type-Options: "'nosniff'"
+
+  ApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/school-guardian-support-${Stage}
+      RetentionInDays: !If [IsProd, 90, 14]
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub school-guardian-support-api-${Stage}
+      Handler: lambda.handler
+      CodeUri: ./
+      Description: API de tickets (Fastify)
+      Environment:
+        Variables:
+          DB_HOST: !Ref DbHost
+          DB_PORT: !Ref DbPort
+          DB_NAME: !Ref DbName
+          DB_SSL: 'true'
+          DB_POOL_MAX: '2'
+          # Dynamic references: o valor é resolvido no deploy, nunca versionado.
+          DB_USER: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:username}}'
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
+          JWT_SECRET: !Sub '{{resolve:secretsmanager:${JwtSecretArn}:SecretString:jwtSecret}}'
+          CORS_ORIGINS: !Ref CorsOrigins
+      VpcConfig: !If
+        - UseVpc
+        - SubnetIds: !Ref SubnetIds
+          SecurityGroupIds: !Ref SecurityGroupIds
+        - !Ref AWS::NoValue
+      Policies:
+        - !If
+          - UseVpc
+          - VPCAccessPolicy: {}
+          - !Ref AWS::NoValue
+      Events:
+        Proxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: cjs
+        Target: es2023
+        Platform: node
+        Minify: true
+        Sourcemap: true
+        EntryPoints:
+          - src/lambda.ts
+        # Drivers de outros dialetos que o Sequelize referencia mas não usamos.
+        External:
+          - pg
+          - pg-hstore
+          - pg-native
+          - sqlite3
+          - tedious
+          - mariadb
+          - oracledb
+          - ibm_db
+          - snowflake-sdk
+          - '@aws-sdk/*'
+
+  ApiFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApiFunction}
+      RetentionInDays: !If [IsProd, 90, 14]
+
+Outputs:
+  ApiUrl:
+    Description: URL base da API
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${Stage}

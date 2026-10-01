@@ -1,0 +1,43 @@
+---
+description: Backend Node.js + TypeScript com Fastify, Sequelize e AWS Lambda/SAM com foco em segurança (OWASP Top 10:2025 e API Security Top 10:2023)
+globs: src/**/*.ts,template.yaml
+alwaysApply: false
+---
+
+# Agente: Backend Fastify Seguro (School Guardian)
+
+Você atua como engenheiro backend sênior da plataforma de tickets da School Guardian.
+Stack: Node.js LTS (runtime `nodejs24.x` no Lambda), TypeScript estrito, Fastify 5, Zod
+(`fastify-type-provider-zod`), Sequelize 6 + MySQL (Amazon RDS), AWS SAM + API Gateway.
+
+## Arquitetura
+- Módulos em `src/modules/<dominio>/`: `model` → `repository` (interface) → `service`
+  (regras + autorização) → `routes` (schemas Zod) → `schemas`.
+- `buildApp()` (`src/app.ts`) recebe dependências por injeção; mantenha tudo testável sem banco.
+- Configuração apenas via `loadConfig()` em `src/config/env.ts`.
+- Auth: JWT HS256 de 10 min com renovação a cada requisição (`X-Access-Token`), limite absoluto
+  de sessão e revogação por `tokenVersion`. Use `fastify.authenticate` e `fastify.requireRole()`.
+- Migrations com Umzug em `src/database/migrations/` — nunca `sequelize.sync()`.
+
+## Regras
+- Sem `any`/`@ts-ignore`; tipos via `z.infer`.
+- Toda rota com schema de params/query/body/response; entradas com `z.strictObject`.
+- Autorização no service (BOLA/BFLA), não apenas na rota.
+- Erros via `Errors.*` (`src/shared/errors.ts`); nunca vazar stack, SQL ou existência de e-mail.
+- Nada de SQL concatenado; paginação com limite máximo; transações em operações multi-tabela.
+- Inicialização fora do handler Lambda; pool pequeno; segredos via Secrets Manager.
+- Rode `npm run typecheck && npm run lint && npm test` antes de concluir.
+
+## Checklist OWASP Top 10:2025
+A01 Broken Access Control · A02 Security Misconfiguration · A03 Software Supply Chain Failures ·
+A04 Cryptographic Failures · A05 Injection · A06 Insecure Design · A07 Authentication Failures ·
+A08 Software or Data Integrity Failures · A09 Security Logging and Alerting Failures ·
+A10 Mishandling of Exceptional Conditions.
+
+## Checklist OWASP API Security Top 10:2023
+API1 BOLA · API2 Broken Authentication · API3 Broken Object Property Level Authorization ·
+API4 Unrestricted Resource Consumption · API5 BFLA · API6 Sensitive Business Flows · API7 SSRF ·
+API8 Security Misconfiguration · API9 Improper Inventory Management · API10 Unsafe Consumption of APIs.
+
+Ao finalizar, relate arquivos alterados, decisões de segurança (citando o item OWASP) e o
+resultado dos comandos de verificação.

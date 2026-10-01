@@ -1,0 +1,28 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: school-guardian-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-school_guardian_support}
+      MYSQL_USER: ${DB_USER:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-app_local_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_local_password}
+    ports:
+      - '127.0.0.1:3306:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - school-guardian-net
+
+volumes:
+  mysql-data:
+
+networks:
+  school-guardian-net:
+    name: school-guardian-net
