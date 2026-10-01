@@ -4,8 +4,10 @@ import {
   type CreationOptional,
   type InferAttributes,
   type InferCreationAttributes,
+  type NonAttribute,
   type Sequelize,
 } from 'sequelize';
+import type { User } from '../users/user.model';
 
 export class Post extends Model<InferAttributes<Post>, InferCreationAttributes<Post>> {
   declare id: CreationOptional<string>;
@@ -15,6 +17,9 @@ export class Post extends Model<InferAttributes<Post>, InferCreationAttributes<P
   declare content: string;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
+
+  /** Carregado via `include` (alias `author`). */
+  declare author?: NonAttribute<User | null>;
 }
 
 export function initPostModel(sequelize: Sequelize): typeof Post {

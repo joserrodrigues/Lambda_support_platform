@@ -1,0 +1,4269 @@
+openapi: 3.1.0
+info:
+  license:
+    name: Proprietary
+  title: School Guardian — Support Platform API
+  version: 0.1.0
+  description: >-
+    API de gerenciamento de tickets da School Guardian.
+
+
+    ## Autenticação
+
+    1. `POST /auth/login` com e-mail e senha retorna um Bearer token válido por
+    **10 minutos**.
+
+    2. Envie `Authorization: Bearer <token>` em todas as rotas protegidas.
+
+    3. **Toda resposta autenticada retorna um token renovado no header
+    `X-Access-Token`** (e `X-Access-Token-Expires-In`). Substitua o token
+    armazenado por esse valor a cada resposta.
+
+    4. A sessão expira após 10 min sem uso ou ao atingir o tempo máximo (padrão
+    8h desde o login).
+
+    5. `POST /auth/logout`, troca de senha e desativação revogam todos os tokens
+    do usuário.
+
+
+    ## Erros
+
+    Todas as respostas de erro seguem o formato `{ statusCode, code, message,
+    details? }`.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        name:
+          type: string
+        email:
+          type: string
+        login:
+          type: string
+        role:
+          type: string
+          enum:
+            - admin
+            - agent
+            - requester
+        active:
+          type: boolean
+        lastLoginAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - login
+        - role
+        - active
+        - lastLoginAt
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            pageSize:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            total:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+          required:
+            - page
+            - pageSize
+            - total
+          additionalProperties: false
+      required:
+        - data
+        - meta
+      additionalProperties: false
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          const: Bearer
+        expiresIn:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - accessToken
+        - tokenType
+        - expiresIn
+        - user
+      additionalProperties: false
+    TicketStatus:
+      type: string
+      enum:
+        - aguardando
+        - em_analise
+        - aguardando_suporte_n2
+        - resposta_n2_realizada
+        - done
+    TicketDevStatus:
+      type: string
+      enum:
+        - aguardando
+        - em_analise
+        - em_desenvolvimento
+        - em_teste
+        - aguardando_cliente
+        - aguardando_importacao
+        - aguardando_producao
+        - aguardando_loja
+        - proxima_sprint
+        - nao_necessita_desenvolvimento
+        - concluido
+    TicketEntryType:
+      type: string
+      enum:
+        - email
+        - cms
+        - reuniao
+        - whatsapp
+    TicketSlaType:
+      type: string
+      enum:
+        - critico
+        - alto
+        - medio
+        - baixo
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        schoolId:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        devStatus:
+          anyOf:
+            - $ref: "#/components/schemas/TicketDevStatus"
+            - type: "null"
+        entryType:
+          $ref: "#/components/schemas/TicketEntryType"
+        errorType:
+          type:
+            - string
+            - "null"
+        supportLevel2:
+          type: boolean
+        priority:
+          type: boolean
+        slaType:
+          anyOf:
+            - $ref: "#/components/schemas/TicketSlaType"
+            - type: "null"
+        responseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        technicalResponseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        schoolResponsible:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - schoolId
+        - status
+        - devStatus
+        - entryType
+        - errorType
+        - supportLevel2
+        - priority
+        - slaType
+        - responseAt
+        - technicalResponseAt
+        - schoolResponsible
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    TicketList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            pageSize:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            total:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+          required:
+            - page
+            - pageSize
+            - total
+          additionalProperties: false
+      required:
+        - data
+        - meta
+      additionalProperties: false
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        ticketId:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        content:
+          type: string
+        author:
+          anyOf:
+            - type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                name:
+                  type: string
+              required:
+                - id
+                - name
+              additionalProperties: false
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ticketId
+        - content
+        - author
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    PostList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            pageSize:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            total:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+          required:
+            - page
+            - pageSize
+            - total
+          additionalProperties: false
+      required:
+        - data
+        - meta
+      additionalProperties: false
+    TicketOptions:
+      type: object
+      properties:
+        status:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+            required:
+              - value
+              - label
+            additionalProperties: false
+        devStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+            required:
+              - value
+              - label
+            additionalProperties: false
+        entryType:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+            required:
+              - value
+              - label
+            additionalProperties: false
+        slaType:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+            required:
+              - value
+              - label
+            additionalProperties: false
+      required:
+        - status
+        - devStatus
+        - entryType
+        - slaType
+      additionalProperties: false
+    CreateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        login:
+          type: string
+          minLength: 3
+          maxLength: 60
+          pattern: ^[a-z0-9._-]+$
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        role:
+          default: requester
+          type: string
+          enum:
+            - admin
+            - agent
+            - requester
+      required:
+        - name
+        - email
+        - login
+        - password
+      additionalProperties: false
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        login:
+          type: string
+          minLength: 3
+          maxLength: 60
+          pattern: ^[a-z0-9._-]+$
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+        role:
+          type: string
+          enum:
+            - admin
+            - agent
+            - requester
+        active:
+          type: boolean
+      additionalProperties: false
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          pattern: ^(?:[A-Za-z0-9_'+\-]+\.)*[A-Za-z0-9_'+\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required:
+        - email
+        - password
+      additionalProperties: false
+    CreateTicketRequest:
+      type: object
+      properties:
+        schoolId:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 4294967295
+        status:
+          default: aguardando
+          $ref: "#/components/schemas/TicketStatus"
+        devStatus:
+          anyOf:
+            - $ref: "#/components/schemas/TicketDevStatus"
+            - type: "null"
+        entryType:
+          $ref: "#/components/schemas/TicketEntryType"
+        errorType:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 50
+            - type: "null"
+        supportLevel2:
+          default: false
+          type: boolean
+        priority:
+          default: false
+          type: boolean
+        slaType:
+          anyOf:
+            - $ref: "#/components/schemas/TicketSlaType"
+            - type: "null"
+        responseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        technicalResponseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        schoolResponsible:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 120
+            - type: "null"
+      required:
+        - schoolId
+        - entryType
+      additionalProperties: false
+    UpdateTicketRequest:
+      type: object
+      properties:
+        schoolId:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 4294967295
+        status:
+          $ref: "#/components/schemas/TicketStatus"
+        devStatus:
+          anyOf:
+            - $ref: "#/components/schemas/TicketDevStatus"
+            - type: "null"
+        entryType:
+          $ref: "#/components/schemas/TicketEntryType"
+        errorType:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 50
+            - type: "null"
+        supportLevel2:
+          type: boolean
+        priority:
+          type: boolean
+        slaType:
+          anyOf:
+            - $ref: "#/components/schemas/TicketSlaType"
+            - type: "null"
+        responseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        technicalResponseAt:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        schoolResponsible:
+          anyOf:
+            - type: string
+              minLength: 1
+              maxLength: 120
+            - type: "null"
+      additionalProperties: false
+    CreatePostRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+      required:
+        - content
+      additionalProperties: false
+    UpdatePostRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+      required:
+        - content
+      additionalProperties: false
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Verifica se a API está disponível
+      tags:
+        - health
+      security: []
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+                required:
+                  - status
+                additionalProperties: false
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /auth/login:
+    post:
+      operationId: login
+      summary: Autentica por e-mail e senha e retorna um Bearer token (10 min)
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      security: []
+      responses:
+        "200":
+          description: Default Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Retorna o usuário autenticado
+      tags:
+        - auth
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Encerra a sessão revogando todos os tokens do usuário
+      tags:
+        - auth
+      responses:
+        "204":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /users:
+    post:
+      operationId: createUser
+      summary: Cria um usuário (admin)
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "409":
+          description: E-mail ou login já cadastrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    get:
+      operationId: listUsers
+      summary: Lista usuários com paginação (admin)
+      tags:
+        - users
+      parameters:
+        - schema:
+            default: 1
+            type: integer
+            minimum: 1
+            maximum: 10000
+          in: query
+          name: page
+          required: false
+        - schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+          in: query
+          name: pageSize
+          required: false
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /users/{id}:
+    get:
+      operationId: getUser
+      summary: Detalha um usuário (admin ou o próprio)
+      tags:
+        - users
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    patch:
+      operationId: updateUser
+      summary: Atualiza um usuário (admin ou o próprio)
+      tags:
+        - users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "409":
+          description: E-mail ou login já cadastrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    delete:
+      operationId: deleteUser
+      summary: Exclui logicamente um usuário (admin)
+      tags:
+        - users
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "204":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /tickets/options:
+    get:
+      operationId: getTicketOptions
+      summary: Valores e rótulos dos campos de domínio do ticket
+      tags:
+        - tickets
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketOptions"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /tickets:
+    post:
+      operationId: createTicket
+      summary: Cria um ticket
+      tags:
+        - tickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+      responses:
+        "201":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "422":
+          description: Escola não encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    get:
+      operationId: listTickets
+      summary: Lista tickets com filtros e paginação
+      tags:
+        - tickets
+      parameters:
+        - schema:
+            default: 1
+            type: integer
+            minimum: 1
+            maximum: 10000
+          in: query
+          name: page
+          required: false
+        - schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+          in: query
+          name: pageSize
+          required: false
+        - schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 4294967295
+          in: query
+          name: schoolId
+          required: false
+        - schema:
+            $ref: "#/components/schemas/TicketStatus"
+          in: query
+          name: status
+          required: false
+        - schema:
+            $ref: "#/components/schemas/TicketDevStatus"
+          in: query
+          name: devStatus
+          required: false
+        - schema:
+            $ref: "#/components/schemas/TicketEntryType"
+          in: query
+          name: entryType
+          required: false
+        - schema:
+            $ref: "#/components/schemas/TicketSlaType"
+          in: query
+          name: slaType
+          required: false
+        - schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: query
+          name: priority
+          required: false
+        - schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+          in: query
+          name: supportLevel2
+          required: false
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketList"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /tickets/{id}:
+    get:
+      operationId: getTicket
+      summary: Detalha um ticket
+      tags:
+        - tickets
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Ticket não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    patch:
+      operationId: updateTicket
+      summary: Atualiza um ticket (null limpa campos opcionais)
+      tags:
+        - tickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketRequest"
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Ticket não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "422":
+          description: Escola não encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    delete:
+      operationId: deleteTicket
+      summary: Exclui um ticket e seus posts (admin)
+      tags:
+        - tickets
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "204":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Ticket não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /tickets/{id}/posts:
+    post:
+      operationId: createTicketPost
+      summary: Adiciona um post ao ticket
+      tags:
+        - posts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostRequest"
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "201":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Ticket não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    get:
+      operationId: listTicketPosts
+      summary: Lista os posts do ticket (mais antigos primeiro)
+      tags:
+        - posts
+      parameters:
+        - schema:
+            default: 1
+            type: integer
+            minimum: 1
+            maximum: 10000
+          in: query
+          name: page
+          required: false
+        - schema:
+            default: 20
+            type: integer
+            minimum: 1
+            maximum: 100
+          in: query
+          name: pageSize
+          required: false
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostList"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Ticket não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /tickets/{id}/posts/{postId}:
+    patch:
+      operationId: updateTicketPost
+      summary: Edita um post (autor ou admin)
+      tags:
+        - posts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePostRequest"
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: postId
+          required: true
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Post não encontrado neste ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+    delete:
+      operationId: deleteTicketPost
+      summary: Exclui um post (autor ou admin)
+      tags:
+        - posts
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: id
+          required: true
+        - schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          in: path
+          name: postId
+          required: true
+      responses:
+        "204":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "404":
+          description: Post não encontrado neste ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local (npm run dev)
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{stage}
+    description: AWS API Gateway
+    variables:
+      apiId:
+        default: api-id
+      region:
+        default: us-east-1
+      stage:
+        default: dev
+        enum:
+          - dev
+          - staging
+          - prod
+security:
+  - bearerAuth: []
+tags:
+  - name: health
+    description: Verificação de disponibilidade
+  - name: auth
+    description: Login, sessão e logout
+  - name: users
+    description: Gestão de usuários
+  - name: tickets
+    description: Tickets de suporte
+  - name: posts
+    description: Posts (interações) dos tickets

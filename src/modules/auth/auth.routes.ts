@@ -17,6 +17,7 @@ export const authRoutes: FastifyPluginAsyncZod<{
       config: { rateLimit: { max: config.LOGIN_RATE_LIMIT_MAX, timeWindow: '1 minute' } },
       schema: {
         tags: ['auth'],
+        security: [],
         body: loginBodySchema,
         response: { 200: loginResponseSchema },
       },

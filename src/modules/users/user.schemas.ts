@@ -18,13 +18,15 @@ export const loginSchema = z
 const nameSchema = z.string().trim().min(2).max(120);
 
 // `strictObject` rejeita campos desconhecidos (proteção contra mass assignment).
-export const createUserBodySchema = z.strictObject({
-  name: nameSchema,
-  email: emailSchema,
-  login: loginSchema,
-  password: passwordSchema,
-  role: z.enum(USER_ROLES).default('requester'),
-});
+export const createUserBodySchema = z
+  .strictObject({
+    name: nameSchema,
+    email: emailSchema,
+    login: loginSchema,
+    password: passwordSchema,
+    role: z.enum(USER_ROLES).default('requester'),
+  })
+  .meta({ id: 'CreateUserRequest' });
 
 export const updateUserBodySchema = z
   .strictObject({
@@ -38,7 +40,8 @@ export const updateUserBodySchema = z
   })
   .refine((body) => Object.keys(body).some((key) => key !== 'currentPassword'), {
     message: 'Informe ao menos um campo para atualizar',
-  });
+  })
+  .meta({ id: 'UpdateUserRequest' });
 
 export const userIdParamsSchema = z.strictObject({ id: z.uuid() });
 
@@ -47,26 +50,30 @@ export const listUsersQuerySchema = z.strictObject({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const publicUserSchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  email: z.string(),
-  login: z.string(),
-  role: z.enum(USER_ROLES),
-  active: z.boolean(),
-  lastLoginAt: z.date().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
+export const publicUserSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    email: z.string(),
+    login: z.string(),
+    role: z.enum(USER_ROLES),
+    active: z.boolean(),
+    lastLoginAt: z.date().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  })
+  .meta({ id: 'User' });
 
-export const userListResponseSchema = z.object({
-  data: z.array(publicUserSchema),
-  meta: z.object({
-    page: z.number().int(),
-    pageSize: z.number().int(),
-    total: z.number().int(),
-  }),
-});
+export const userListResponseSchema = z
+  .object({
+    data: z.array(publicUserSchema),
+    meta: z.object({
+      page: z.number().int(),
+      pageSize: z.number().int(),
+      total: z.number().int(),
+    }),
+  })
+  .meta({ id: 'UserList' });
 
 export type CreateUserBody = z.infer<typeof createUserBodySchema>;
 export type UpdateUserBody = z.infer<typeof updateUserBodySchema>;

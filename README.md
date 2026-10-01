@@ -34,6 +34,8 @@ src/
 ├── plugins/                # auth (JWT), security (helmet/cors/rate-limit), error-handler
 ├── modules/
 │   ├── auth/               # login, me, logout
+│   ├── schools/            # escolas (FK dos tickets)
+│   ├── tickets/            # CRUD de tickets e posts
 │   └── users/              # CRUD de usuários
 ├── shared/                 # erros e hash de senha (scrypt)
 └── scripts/                # migrate e seed do admin
@@ -61,51 +63,71 @@ Para simular o Lambda + API Gateway: `cp env.local.json.example env.local.json` 
 
 Migrations em `src/database/migrations/` (Umzug), aplicadas com `npm run db:migrate`.
 
-| Migration                           | Descrição                                    |
-| ----------------------------------- | -------------------------------------------- |
-| `20261001000000-create-users`       | tabela `users`                               |
-| `20261001000100-add-login-to-users` | coluna `login` (única) em `users`            |
-| `20261001000200-create-tickets`     | tabela `tickets`                             |
-| `20261001000300-create-posts`       | tabela `posts` (FK para `tickets` e `users`) |
+| Migration                                             | Descrição                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------- |
+| `20261001000000-create-users`                         | tabela `users`                                            |
+| `20261001000100-add-login-to-users`                   | coluna `login` (única) em `users`                         |
+| `20261001000200-create-tickets`                       | tabela `tickets`                                          |
+| `20261001000300-create-posts`                         | tabela `posts` (FK para `tickets` e `users`)              |
+| `20261001000400-create-schools`                       | tabela `schools`                                          |
+| `20261001000500-alter-tickets-priority-and-school-fk` | `priority` → BOOLEAN; FK `tickets.school_id → schools.id` |
 
 **users** — `id` (UUID), `name`, `email` (único), `login` (único), `password_hash`, `role`,
 `active`, `token_version`, `last_login_at`, `created_at`, `updated_at`, `deleted_at`.
 
+**schools** — `id` (INT UNSIGNED, auto increment; aceita ids explícitos para espelhar o School
+Guardian), `name`, `created_at`, `updated_at`.
+
 **tickets**
 
-| Coluna                  | Tipo         | Campo de negócio      |
-| ----------------------- | ------------ | --------------------- |
-| `id`                    | UUID         | id                    |
-| `school_id`             | INT UNSIGNED | id escola             |
-| `status`                | VARCHAR(30)  | status                |
-| `dev_status`            | VARCHAR(30)  | status dev            |
-| `entry_type`            | VARCHAR(30)  | tipo entrada          |
-| `error_type`            | VARCHAR(50)  | tipo erro             |
-| `support_level_2`       | TINYINT      | suporte nível 2 (0/1) |
-| `priority`              | VARCHAR(20)  | prioridade            |
-| `sla_type`              | VARCHAR(30)  | tipo SLA              |
-| `response_at`           | DATETIME     | data resposta         |
-| `technical_response_at` | DATETIME     | data resposta técnica |
-| `school_responsible`    | VARCHAR(120) | resp. escola          |
-| `created_at`            | DATETIME     | data criação          |
-| `updated_at`            | DATETIME     | data alteração        |
+| Coluna                  | Tipo         | Campo de negócio                             |
+| ----------------------- | ------------ | -------------------------------------------- |
+| `id`                    | UUID         | id                                           |
+| `school_id`             | INT UNSIGNED | id escola (FK `schools`, ON DELETE RESTRICT) |
+| `status`                | VARCHAR(30)  | status                                       |
+| `dev_status`            | VARCHAR(30)  | status dev                                   |
+| `entry_type`            | VARCHAR(30)  | tipo entrada                                 |
+| `error_type`            | VARCHAR(50)  | tipo erro                                    |
+| `support_level_2`       | TINYINT      | suporte nível 2 (0/1)                        |
+| `priority`              | BOOLEAN      | prioridade (sim/não)                         |
+| `sla_type`              | VARCHAR(30)  | tipo SLA                                     |
+| `response_at`           | DATETIME     | data resposta                                |
+| `technical_response_at` | DATETIME     | data resposta técnica                        |
+| `school_responsible`    | VARCHAR(120) | resp. escola                                 |
+| `created_at`            | DATETIME     | data criação                                 |
+| `updated_at`            | DATETIME     | data alteração                               |
+
+Os campos `status`, `dev_status`, `entry_type` e `sla_type` guardam **códigos** (ex.:
+`em_analise`), validados apenas na aplicação (`src/modules/tickets/ticket.constants.ts`), sem
+ENUM/CHECK no MySQL — novos valores não exigem migration. Os rótulos para exibição vêm de
+`GET /tickets/options`. `error_type` e `school_responsible` são texto livre.
 
 **posts** — `id` (UUID), `ticket_id` (FK `tickets`, `ON DELETE CASCADE`), `user_id`
 (FK `users`, autor), `content` (TEXT), `created_at`, `updated_at`.
 
 ## Endpoints
 
-| Método | Rota           | Acesso                 | Descrição                               |
-| ------ | -------------- | ---------------------- | --------------------------------------- |
-| GET    | `/health`      | público                | health check                            |
-| POST   | `/auth/login`  | público (rate limited) | retorna Bearer token (10 min)           |
-| GET    | `/auth/me`     | autenticado            | usuário atual                           |
-| POST   | `/auth/logout` | autenticado            | revoga todos os tokens do usuário       |
-| POST   | `/users`       | admin                  | cria usuário                            |
-| GET    | `/users`       | admin                  | lista paginada (`page`, `pageSize≤100`) |
-| GET    | `/users/:id`   | admin ou o próprio     | detalhe                                 |
-| PATCH  | `/users/:id`   | admin ou o próprio     | atualiza (role/active só admin)         |
-| DELETE | `/users/:id`   | admin                  | exclusão lógica (soft delete)           |
+| Método | Rota                         | Acesso                 | Descrição                                                                                                                                  |
+| ------ | ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/health`                    | público                | health check                                                                                                                               |
+| POST   | `/auth/login`                | público (rate limited) | retorna Bearer token (10 min)                                                                                                              |
+| GET    | `/auth/me`                   | autenticado            | usuário atual                                                                                                                              |
+| POST   | `/auth/logout`               | autenticado            | revoga todos os tokens do usuário                                                                                                          |
+| POST   | `/users`                     | admin                  | cria usuário                                                                                                                               |
+| GET    | `/users`                     | admin                  | lista paginada (`page`, `pageSize≤100`)                                                                                                    |
+| GET    | `/users/:id`                 | admin ou o próprio     | detalhe                                                                                                                                    |
+| PATCH  | `/users/:id`                 | admin ou o próprio     | atualiza (role/active só admin)                                                                                                            |
+| DELETE | `/users/:id`                 | admin                  | exclusão lógica (soft delete)                                                                                                              |
+| GET    | `/tickets/options`           | admin, agent           | códigos e rótulos de status, devStatus, entryType, slaType                                                                                 |
+| POST   | `/tickets`                   | admin, agent           | cria ticket (escola precisa existir → 422)                                                                                                 |
+| GET    | `/tickets`                   | admin, agent           | lista paginada (`page`, `pageSize≤100`) com filtros `schoolId`, `status`, `devStatus`, `entryType`, `slaType`, `priority`, `supportLevel2` |
+| GET    | `/tickets/:id`               | admin, agent           | detalhe                                                                                                                                    |
+| PATCH  | `/tickets/:id`               | admin, agent           | atualização parcial (`null` limpa campos opcionais)                                                                                        |
+| DELETE | `/tickets/:id`               | admin                  | exclusão definitiva (posts em cascata)                                                                                                     |
+| POST   | `/tickets/:id/posts`         | admin, agent           | cria post (autor = usuário autenticado)                                                                                                    |
+| GET    | `/tickets/:id/posts`         | admin, agent           | lista paginada (ordem cronológica)                                                                                                         |
+| PATCH  | `/tickets/:id/posts/:postId` | autor ou admin         | edita o post                                                                                                                               |
+| DELETE | `/tickets/:id/posts/:postId` | autor ou admin         | exclui o post                                                                                                                              |
 
 Papéis: `admin`, `agent`, `requester`.
 
@@ -141,6 +163,26 @@ curl -i localhost:3000/users -H "authorization: Bearer $TOKEN"   # veja o header
 - **Logs** (A09): pino com `redact` de `authorization`, senhas e tokens.
 - **Erros** (A10): handler central que nunca expõe stack/SQL.
 - **Supply chain** (A03): dependências mínimas, sem binários nativos, `npm audit` limpo.
+
+## OpenAPI (contrato para o frontend)
+
+A especificação **OpenAPI 3.1** fica em [`docs/openapi.json`](docs/openapi.json) e
+[`docs/openapi.yaml`](docs/openapi.yaml), gerada a partir dos próprios schemas Zod das rotas:
+
+```bash
+npm run docs:openapi   # não precisa de banco
+```
+
+- Regere e commite sempre que alterar uma rota ou schema. A geração falha se uma rota nova não
+  tiver `operationId`/`summary` cadastrados em `src/plugins/openapi.ts`.
+- Cada operação tem `operationId` (ex.: `listTickets`, `createTicketPost`), útil para gerar o
+  client tipado, por exemplo com `npx openapi-typescript docs/openapi.json -o src/api/schema.d.ts`.
+- Os schemas nomeados (`Ticket`, `Post`, `User`, `TicketStatus`, `CreateTicketRequest`...) estão
+  em `components.schemas`. Os campos de domínio usam **códigos** (`em_analise`); os rótulos de
+  exibição vêm de `GET /tickets/options`.
+- As rotas protegidas documentam o header de resposta `X-Access-Token`, com o token renovado.
+- A documentação não é publicada pela API em produção (OWASP API9): o plugin só é registrado
+  pelo script de geração.
 
 ## Deploy (AWS SAM)
 

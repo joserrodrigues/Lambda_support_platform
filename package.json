@@ -22,6 +22,7 @@
     "db:down": "docker compose down",
     "db:migrate": "tsx --env-file-if-exists=.env src/scripts/migrate.ts up",
     "db:migrate:undo": "tsx --env-file-if-exists=.env src/scripts/migrate.ts down",
+    "docs:openapi": "tsx src/scripts/generate-openapi.ts",
     "db:seed:admin": "tsx --env-file-if-exists=.env src/scripts/seed-admin.ts",
     "sam:build": "sam build",
     "sam:local": "sam build && sam local start-api --env-vars env.local.json --docker-network school-guardian-net",
@@ -58,7 +59,8 @@
     "ts-jest": "^29.4.14",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.0"
+    "typescript-eslint": "^8.71.0",
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "uuid": "^11.1.1"

@@ -41,9 +41,9 @@ describe('initModels', () => {
   it('should default supportLevel2 to 0', () => {
     const ticket = Ticket.build({
       schoolId: 1,
-      status: 'aberto',
+      status: 'aguardando',
       entryType: 'email',
-      priority: 'alta',
+      priority: false,
       devStatus: null,
       errorType: null,
       slaType: null,

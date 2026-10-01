@@ -16,4 +16,6 @@ export const Errors = {
   forbidden: (message = 'Acesso negado') => new AppError(403, 'FORBIDDEN', message),
   notFound: (message = 'Recurso não encontrado') => new AppError(404, 'NOT_FOUND', message),
   conflict: (message = 'Conflito') => new AppError(409, 'CONFLICT', message),
+  unprocessable: (message = 'Não foi possível processar a requisição') =>
+    new AppError(422, 'UNPROCESSABLE_ENTITY', message),
 };

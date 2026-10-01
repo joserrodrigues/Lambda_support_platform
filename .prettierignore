@@ -3,3 +3,5 @@ dist
 coverage
 .aws-sam
 package-lock.json
+docs/openapi.json
+docs/openapi.yaml
