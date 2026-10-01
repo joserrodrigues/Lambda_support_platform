@@ -7,6 +7,7 @@ describe('Errors', () => {
     ['forbidden', 403, 'FORBIDDEN'],
     ['notFound', 404, 'NOT_FOUND'],
     ['conflict', 409, 'CONFLICT'],
+    ['unprocessable', 422, 'UNPROCESSABLE_ENTITY'],
   ] as const)('%s should build an AppError with status %i', (factory, statusCode, code) => {
     const error = Errors[factory]();
     expect(error).toBeInstanceOf(AppError);

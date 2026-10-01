@@ -1,4 +1,6 @@
+import { buildApp } from '../../../src/app';
 import { createTestApp, type TestContext } from '../../helpers/app';
+import { testConfig } from '../../helpers/fakes';
 
 describe('App hardening', () => {
   let ctx: TestContext;
@@ -88,5 +90,18 @@ describe('App hardening', () => {
       payload: '{"email":',
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('buildApp defaults', () => {
+  it('should build with the default Sequelize repositories and logger without touching the database', async () => {
+    const app = await buildApp({ config: testConfig });
+
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    await app.close();
+
+    expect(res.statusCode).toBe(200);
+    expect(app.hasRoute({ method: 'GET', url: '/tickets' })).toBe(true);
   });
 });

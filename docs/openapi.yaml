@@ -3944,7 +3944,7 @@ paths:
                         message:
                           type: string
         "404":
-          description: Post não encontrado neste ticket
+          description: Post não encontrado (ou não pertence ao ticket)
           content:
             application/json:
               schema:
@@ -4152,7 +4152,7 @@ paths:
                         message:
                           type: string
         "404":
-          description: Post não encontrado neste ticket
+          description: Post não encontrado (ou não pertence ao ticket)
           content:
             application/json:
               schema:

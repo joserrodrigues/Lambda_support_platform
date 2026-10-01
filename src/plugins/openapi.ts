@@ -86,12 +86,20 @@ const ROUTE_ERRORS: Record<string, Record<string, string>> = {
   'DELETE /tickets/:id': { '404': 'Ticket não encontrado' },
   'POST /tickets/:id/posts': { '404': 'Ticket não encontrado' },
   'GET /tickets/:id/posts': { '404': 'Ticket não encontrado' },
-  'PATCH /tickets/:id/posts/:postId': { '404': 'Post não encontrado neste ticket' },
-  'DELETE /tickets/:id/posts/:postId': { '404': 'Post não encontrado neste ticket' },
+  'PATCH /tickets/:id/posts/:postId': { '404': 'Post não encontrado (ou não pertence ao ticket)' },
+  'DELETE /tickets/:id/posts/:postId': { '404': 'Post não encontrado (ou não pertence ao ticket)' },
 };
 
 export const openApiTransform: Transform = (input) => {
   const result = jsonSchemaTransform(input);
+  const method = Array.isArray(input.route.method) ? input.route.method[0] : input.route.method;
+  // Rotas automáticas (preflight do CORS e HEAD) não entram na documentação.
+  if (method === 'OPTIONS' || method === 'HEAD') {
+    return { ...result, schema: { ...result.schema, hide: true } };
+  }
+  // Rotas sem schema ou ocultadas explicitamente não são documentadas.
+  if (!(result.schema as typeof result.schema | undefined) || result.schema.hide) return result;
+
   const schema = result.schema as typeof result.schema & {
     response?: Record<string, JsonObject>;
   };
@@ -107,12 +115,7 @@ export const openApiTransform: Transform = (input) => {
   }
   const hasInput = Boolean(schema.body ?? schema.querystring ?? schema.params);
   if (hasInput) response['400'] ??= errorResponse('Dados inválidos (VALIDATION_ERROR)');
-  const method = Array.isArray(input.route.method) ? input.route.method[0] : input.route.method;
   const key = `${String(method)} ${input.url.replace(/(.)\/$/, '$1')}`;
-  // Rotas automáticas (preflight do CORS e HEAD) não entram na documentação.
-  if (method === 'OPTIONS' || method === 'HEAD') {
-    return { ...result, schema: { ...result.schema, hide: true } };
-  }
   const operation = OPERATIONS[key];
   if (!operation) throw new Error(`Rota sem operationId/summary no OpenAPI: ${key}`);
   for (const [status, description] of Object.entries(ROUTE_ERRORS[key] ?? {})) {
