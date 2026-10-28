@@ -55,6 +55,7 @@ describe('SequelizeTicketRepository', () => {
         responseAt: null,
         technicalResponseAt: null,
         schoolResponsible: null,
+        title: null,
         supportLevel2: false,
         priority: false,
       });

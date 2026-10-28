@@ -2,6 +2,7 @@ import fastifyJwt from '@fastify/jwt';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import type { AppConfig } from '../config/env';
+import { currentDatabaseTarget } from '../database/context';
 import { AuthService } from '../modules/auth/auth.service';
 import type { AccessTokenClaims, AccessTokenPayload } from '../modules/auth/auth.types';
 import type { UserRole } from '../modules/users/user.model';
@@ -85,6 +86,11 @@ export default fp<AuthPluginOptions>(
         payload = await request.jwtVerify<AccessTokenPayload>();
       } catch {
         // Não expõe o motivo exato da falha (expirado, assinatura, formato) ao cliente.
+        throw Errors.unauthorized('Token inválido ou expirado');
+      }
+
+      const target = currentDatabaseTarget();
+      if (target && payload.env !== target) {
         throw Errors.unauthorized('Token inválido ou expirado');
       }
 

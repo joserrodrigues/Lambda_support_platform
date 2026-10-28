@@ -43,7 +43,9 @@ export const updateUserBodySchema = z
   })
   .meta({ id: 'UpdateUserRequest' });
 
-export const userIdParamsSchema = z.strictObject({ id: z.uuid() });
+export const userIdParamsSchema = z.strictObject({
+  id: z.coerce.number().int().positive(),
+});
 
 export const listUsersQuerySchema = z.strictObject({
   page: z.coerce.number().int().min(1).max(10_000).default(1),
@@ -52,7 +54,7 @@ export const listUsersQuerySchema = z.strictObject({
 
 export const publicUserSchema = z
   .object({
-    id: z.uuid(),
+    id: z.number().int().positive(),
     name: z.string(),
     email: z.string(),
     login: z.string(),

@@ -9,7 +9,7 @@ describe('currentUser', () => {
   });
 
   it('should return the authenticated user', () => {
-    const authUser = { id: 'id', role: 'admin' as const };
+    const authUser = { id: 1, role: 'admin' as const };
     expect(currentUser({ authUser } as FastifyRequest)).toBe(authUser);
   });
 });

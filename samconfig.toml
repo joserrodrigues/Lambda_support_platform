@@ -2,6 +2,7 @@ version = 0.1
 
 [default.global.parameters]
 stack_name = "school-guardian-support-dev"
+region = "us-west-2"
 
 [default.build.parameters]
 cached = true
@@ -11,8 +12,10 @@ parallel = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-region = "us-east-1"
-parameter_overrides = "Stage=dev"
+parameter_overrides = "Stage=\"dev\" DbHost=\"fsfhomencrypt.ccijvyfnd3ha.us-west-2.rds.amazonaws.com\" DbPort=\"3306\" DbName=\"BaseEscolas\" DbSecretArn=\"arn:aws:secretsmanager:us-west-2:948244283123:secret:test/ticket-XVSQe5\" HomDbHost=\"fsfhomencrypt.ccijvyfnd3ha.us-west-2.rds.amazonaws.com\" HomDbPort=\"3306\" HomDbName=\"BaseEscolas\" HomDbSecretArn=\"arn:aws:secretsmanager:us-west-2:948244283123:secret:test/ticket-XVSQe5\" ProdDbHost=\"\" ProdDbPort=\"3306\" ProdDbName=\"BaseEscolas\" ProdDbSecretArn=\"\" JwtSecretArn=\"arn:aws:secretsmanager:us-west-2:948244283123:secret:test/ticket-XVSQe5\" CorsOrigins=\"https://suporte-t.schoolguardian.app\" SubnetIds=\"subnet-84e3f9ec,subnet-85e3f9ed,subnet-86e3f9ee\" SecurityGroupIds=\"sg-4429c62b\" TicketImageBucket=\"fsfprod\" TicketImageBaseUrl=\"https://d2j2x01e904yhl.cloudfront.net/\" TicketImageRegion=\"us-west-2\" InboundApiSecretName=\"\""
+s3_prefix = "school-guardian-support-dev"
+disable_rollback = true
+image_repositories = []
 
 [default.local_start_api.parameters]
 warm_containers = "EAGER"

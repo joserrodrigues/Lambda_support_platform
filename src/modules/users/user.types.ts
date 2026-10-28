@@ -2,7 +2,7 @@ import type { UserRole } from './user.model';
 
 /** Representação do usuário dentro da aplicação (nunca contém o hash da senha). */
 export interface UserEntity {
-  id: string;
+  id: number;
   name: string;
   email: string;
   login: string;
@@ -34,6 +34,6 @@ export type UpdateUserData = Partial<
 > & { incrementTokenVersion?: boolean };
 
 export interface AuthenticatedUser {
-  id: string;
+  id: number;
   role: UserRole;
 }

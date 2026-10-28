@@ -19,6 +19,34 @@ Parameters:
   DbSecretArn:
     Type: String
     Description: ARN do segredo no Secrets Manager com as chaves "username" e "password" do banco
+  HomDbHost:
+    Type: String
+    Default: ''
+    Description: Host do banco de https://suporte-t.schoolguardian.app (vazio = hom indisponível)
+  HomDbPort:
+    Type: String
+    Default: '3306'
+  HomDbName:
+    Type: String
+    Default: BaseEscolas
+  HomDbSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN do segredo (username/password) do banco de hom
+  ProdDbHost:
+    Type: String
+    Default: ''
+    Description: Host do banco de https://suporte.schoolguardian.app (vazio em produção usa DbHost)
+  ProdDbPort:
+    Type: String
+    Default: '3306'
+  ProdDbName:
+    Type: String
+    Default: BaseEscolas
+  ProdDbSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN do segredo (username/password) do banco de prod
   JwtSecretArn:
     Type: String
     Description: ARN do segredo no Secrets Manager contendo a chave "jwtSecret"
@@ -33,17 +61,34 @@ Parameters:
   SecurityGroupIds:
     Type: CommaDelimitedList
     Default: ''
+  TicketImageBucket:
+    Type: String
+    Default: fsfprod
+    Description: Bucket privado das fotos, o mesmo do CMS
+  TicketImageBaseUrl:
+    Type: String
+    Default: https://d2j2x01e904yhl.cloudfront.net/
+    Description: URL estável gravada no HTML. A assinatura de 30 minutos é gerada na leitura
+  TicketImageRegion:
+    Type: String
+    Default: us-west-2
+  InboundApiSecretName:
+    Type: String
+    Default: ''
+    Description: Nome do segredo da chave de entrada (HMAC). Vazio deixa criar, buscar e melhorar texto em 503.
 
 Conditions:
   UseVpc: !Not [!Equals [!Join ['', !Ref SubnetIds], '']]
   IsProd: !Equals [!Ref Stage, prod]
+  HasHomDb: !Not [!Equals [!Ref HomDbHost, '']]
+  HasProdDb: !Not [!Equals [!Ref ProdDbHost, '']]
 
 Globals:
   Function:
     Runtime: nodejs24.x
     Architectures: [arm64]
     MemorySize: 1024
-    Timeout: 15
+    Timeout: 29
     Tracing: Active
     Environment:
       Variables:
@@ -105,6 +150,34 @@ Resources:
           DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DbSecretArn}:SecretString:password}}'
           JWT_SECRET: !Sub '{{resolve:secretsmanager:${JwtSecretArn}:SecretString:jwtSecret}}'
           CORS_ORIGINS: !Ref CorsOrigins
+          HOM_DB_HOST: !Ref HomDbHost
+          HOM_DB_PORT: !Ref HomDbPort
+          HOM_DB_NAME: !Ref HomDbName
+          HOM_DB_SSL: 'true'
+          HOM_DB_USER: !If
+            - HasHomDb
+            - !Sub '{{resolve:secretsmanager:${HomDbSecretArn}:SecretString:username}}'
+            - ''
+          HOM_DB_PASSWORD: !If
+            - HasHomDb
+            - !Sub '{{resolve:secretsmanager:${HomDbSecretArn}:SecretString:password}}'
+            - ''
+          PROD_DB_HOST: !Ref ProdDbHost
+          PROD_DB_PORT: !Ref ProdDbPort
+          PROD_DB_NAME: !Ref ProdDbName
+          PROD_DB_SSL: 'true'
+          PROD_DB_USER: !If
+            - HasProdDb
+            - !Sub '{{resolve:secretsmanager:${ProdDbSecretArn}:SecretString:username}}'
+            - ''
+          PROD_DB_PASSWORD: !If
+            - HasProdDb
+            - !Sub '{{resolve:secretsmanager:${ProdDbSecretArn}:SecretString:password}}'
+            - ''
+          AWS_S3_BUCKET: !Ref TicketImageBucket
+          AWS_S3_REGION: !Ref TicketImageRegion
+          AWS_S3_URL: !Ref TicketImageBaseUrl
+          INBOUND_API_SECRET_NAME: !Ref InboundApiSecretName
       VpcConfig: !If
         - UseVpc
         - SubnetIds: !Ref SubnetIds
@@ -115,6 +188,18 @@ Resources:
           - UseVpc
           - VPCAccessPolicy: {}
           - !Ref AWS::NoValue
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub arn:aws:s3:::${TicketImageBucket}/supportTickets/*
+                - !Sub arn:aws:s3:::${TicketImageBucket}/*/supportTickets/*
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*
       Events:
         Proxy:
           Type: Api
@@ -143,7 +228,6 @@ Resources:
           - oracledb
           - ibm_db
           - snowflake-sdk
-          - '@aws-sdk/*'
 
   ApiFunctionLogs:
     Type: AWS::Logs::LogGroup

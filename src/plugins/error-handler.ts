@@ -1,6 +1,7 @@
 import type { FastifyError } from 'fastify';
 import fp from 'fastify-plugin';
 import { AppError } from '../shared/errors';
+import { isMissingTicketTableError, TICKET_TABLES_MISSING } from '../shared/ticket-tables';
 
 interface ErrorBody {
   statusCode: number;
@@ -38,6 +39,15 @@ export default fp(
           })),
         };
         return reply.status(400).send(body);
+      }
+
+      if (isMissingTicketTableError(error)) {
+        const body: ErrorBody = {
+          statusCode: 503,
+          code: 'SERVICE_UNAVAILABLE',
+          message: TICKET_TABLES_MISSING,
+        };
+        return reply.status(503).send(body);
       }
 
       const statusCode = error.statusCode ?? 500;

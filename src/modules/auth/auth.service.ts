@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { currentDatabaseTarget } from '../../database/context';
 import { Errors } from '../../shared/errors';
 import { getDummyHash } from '../../shared/password';
 import type { UserRepository } from '../users/user.repository';
@@ -15,6 +16,14 @@ export interface AuthServiceOptions {
 
 const INVALID_CREDENTIALS = 'Credenciais inválidas';
 const INVALID_TOKEN = 'Token inválido ou expirado';
+
+/** `fsfadm_Usuarios.id` é inteiro; o claim `sub` do JWT continua string. */
+function userIdFromSubject(sub: string): number {
+  if (!/^[1-9]\d*$/.test(sub)) throw Errors.unauthorized(INVALID_TOKEN);
+  const id = Number(sub);
+  if (!Number.isSafeInteger(id)) throw Errors.unauthorized(INVALID_TOKEN);
+  return id;
+}
 
 export class AuthService {
   private readonly now: () => number;
@@ -61,7 +70,7 @@ export class AuthService {
     if (this.now() - payload.auth_time > this.options.sessionMaxAgeSeconds) {
       throw Errors.unauthorized('Sessão expirada, faça login novamente');
     }
-    const user = await this.users.findById(payload.sub);
+    const user = await this.users.findById(userIdFromSubject(payload.sub));
     if (!user || !user.active || user.tokenVersion !== payload.ver) {
       throw Errors.unauthorized(INVALID_TOKEN);
     }
@@ -74,17 +83,19 @@ export class AuthService {
   }
 
   /** Revoga todos os tokens do usuário incrementando a versão. */
-  async logout(userId: string): Promise<void> {
+  async logout(userId: number): Promise<void> {
     await this.users.update(userId, { incrementTokenVersion: true });
   }
 
   private issueToken(user: UserEntity, authTime: number): Promise<string> {
+    const target = currentDatabaseTarget();
     return this.signer.sign({
-      sub: user.id,
+      sub: String(user.id),
       role: user.role,
       ver: user.tokenVersion,
       auth_time: authTime,
       jti: randomUUID(),
+      ...(target ? { env: target } : {}),
     });
   }
 }

@@ -1,5 +1,10 @@
-import type { WhereOptions } from 'sequelize';
-import { Ticket } from './ticket.model';
+import { Op, type WhereOptions } from 'sequelize';
+import { activeModels } from '../../database/context';
+import { type Ticket } from './ticket.model';
+
+function ticketModel(): typeof Ticket {
+  return activeModels().Ticket;
+}
 import type {
   CreateTicketData,
   Pagination,
@@ -14,6 +19,8 @@ export interface TicketRepository {
     params: Pagination & { filters: TicketFilters },
   ): Promise<{ rows: TicketEntity[]; count: number }>;
   create(data: CreateTicketData): Promise<TicketEntity>;
+  /** Grava a abertura sem alterar `updatedAt`. */
+  markViewed(id: string, at: Date): Promise<TicketEntity | null>;
   update(id: string, data: UpdateTicketData): Promise<TicketEntity | null>;
   /** Remove o ticket; os posts são removidos pela FK `ON DELETE CASCADE`. */
   delete(id: string): Promise<boolean>;
@@ -23,6 +30,7 @@ function toEntity(ticket: Ticket): TicketEntity {
   return {
     id: ticket.id,
     schoolId: ticket.schoolId,
+    title: ticket.title ?? null,
     status: ticket.status,
     devStatus: ticket.devStatus ?? null,
     entryType: ticket.entryType,
@@ -33,6 +41,9 @@ function toEntity(ticket: Ticket): TicketEntity {
     responseAt: ticket.responseAt ?? null,
     technicalResponseAt: ticket.technicalResponseAt ?? null,
     schoolResponsible: ticket.schoolResponsible ?? null,
+    schoolUserId: ticket.schoolUserId ?? null,
+    schoolUserName: ticket.schoolUserName ?? null,
+    viewedAt: ticket.viewedAt ?? null,
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
   };
@@ -53,17 +64,22 @@ function toWhere(filters: TicketFilters): WhereOptions<Ticket> {
   if (filters.slaType !== undefined) where.slaType = filters.slaType;
   if (filters.priority !== undefined) where.priority = filters.priority;
   if (filters.supportLevel2 !== undefined) where.supportLevel2 = filters.supportLevel2 ? 1 : 0;
+  if (filters.since) {
+    Object.assign(where, {
+      [Op.or]: [{ createdAt: { [Op.gte]: filters.since } }, { updatedAt: { [Op.gte]: filters.since } }],
+    });
+  }
   return where;
 }
 
 export class SequelizeTicketRepository implements TicketRepository {
   async findById(id: string): Promise<TicketEntity | null> {
-    const ticket = await Ticket.findByPk(id);
+    const ticket = await ticketModel().findByPk(id);
     return ticket ? toEntity(ticket) : null;
   }
 
   async list({ limit, offset, filters }: Pagination & { filters: TicketFilters }) {
-    const { rows, count } = await Ticket.findAndCountAll({
+    const { rows, count } = await ticketModel().findAndCountAll({
       where: toWhere(filters),
       limit,
       offset,
@@ -76,12 +92,20 @@ export class SequelizeTicketRepository implements TicketRepository {
   }
 
   async create(data: CreateTicketData): Promise<TicketEntity> {
-    const ticket = await Ticket.create({ ...data, supportLevel2: data.supportLevel2 ? 1 : 0 });
+    const ticket = await ticketModel().create({ ...data, supportLevel2: data.supportLevel2 ? 1 : 0 });
+    return toEntity(ticket);
+  }
+
+  async markViewed(id: string, at: Date): Promise<TicketEntity | null> {
+    const ticket = await ticketModel().findByPk(id);
+    if (!ticket) return null;
+    ticket.viewedAt = at;
+    await ticket.save({ silent: true });
     return toEntity(ticket);
   }
 
   async update(id: string, data: UpdateTicketData): Promise<TicketEntity | null> {
-    const ticket = await Ticket.findByPk(id);
+    const ticket = await ticketModel().findByPk(id);
     if (!ticket) return null;
     ticket.set(toAttributes(data));
     await ticket.save();
@@ -89,7 +113,7 @@ export class SequelizeTicketRepository implements TicketRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const deleted = await Ticket.destroy({ where: { id } });
+    const deleted = await ticketModel().destroy({ where: { id } });
     return deleted > 0;
   }
 }

@@ -18,4 +18,6 @@ export const Errors = {
   conflict: (message = 'Conflito') => new AppError(409, 'CONFLICT', message),
   unprocessable: (message = 'Não foi possível processar a requisição') =>
     new AppError(422, 'UNPROCESSABLE_ENTITY', message),
+  serviceUnavailable: (message = 'Serviço indisponível') =>
+    new AppError(503, 'SERVICE_UNAVAILABLE', message),
 };

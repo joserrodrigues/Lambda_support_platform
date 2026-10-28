@@ -93,13 +93,13 @@ describe('UserService', () => {
     it('should forbid a non-admin from reading another user (BOLA)', async () => {
       const other = repo.seed();
       await expect(
-        service.getById(other.id, { id: 'someone-else', role: 'agent' }),
+        service.getById(other.id, { id: 900003, role: 'agent' }),
       ).rejects.toMatchObject({ statusCode: 403 });
     });
 
     it('should throw 404 when the user does not exist', async () => {
       await expect(
-        service.getById('00000000-0000-4000-8000-000000000000', { id: 'admin', role: 'admin' }),
+        service.getById(999998, { id: 900001, role: 'admin' }),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
   });
@@ -139,13 +139,13 @@ describe('UserService', () => {
 
     it('should revoke tokens when an admin deactivates a user', async () => {
       const user = repo.seed();
-      await service.update(user.id, { active: false }, { id: 'admin-id', role: 'admin' });
+      await service.update(user.id, { active: false }, { id: 900001, role: 'admin' });
       expect(repo.users.get(user.id)).toMatchObject({ active: false, tokenVersion: 1 });
     });
 
     it('should not revoke tokens when an admin reactivates a user', async () => {
       const user = repo.seed({ active: false });
-      await service.update(user.id, { active: true }, { id: 'admin-id', role: 'admin' });
+      await service.update(user.id, { active: true }, { id: 900001, role: 'admin' });
       expect(repo.users.get(user.id)).toMatchObject({ active: true, tokenVersion: 0 });
     });
 
@@ -181,7 +181,7 @@ describe('UserService', () => {
       await service.update(
         user.id,
         { password: 'senha-nova-12345' },
-        { id: 'admin-id', role: 'admin' },
+        { id: 900001, role: 'admin' },
       );
       expect(repo.users.get(user.id)?.passwordHash).toBe('hashed:senha-nova-12345');
     });
@@ -232,13 +232,13 @@ describe('UserService', () => {
     it('should forbid updating another user as non-admin', async () => {
       const other = repo.seed();
       await expect(
-        service.update(other.id, { name: 'Hacker' }, { id: 'me', role: 'agent' }),
+        service.update(other.id, { name: 'Hacker' }, { id: 900002, role: 'agent' }),
       ).rejects.toBeInstanceOf(AppError);
     });
 
     it('should throw 404 when the user does not exist', async () => {
       await expect(
-        service.update('missing', { name: 'Nome' }, { id: 'admin-id', role: 'admin' }),
+        service.update(999999, { name: 'Nome' }, { id: 900001, role: 'admin' }),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
@@ -246,7 +246,7 @@ describe('UserService', () => {
       const user = repo.seed();
       jest.spyOn(repo, 'update').mockResolvedValueOnce(null);
       await expect(
-        service.update(user.id, { name: 'Nome' }, { id: 'admin-id', role: 'admin' }),
+        service.update(user.id, { name: 'Nome' }, { id: 900001, role: 'admin' }),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
   });
@@ -254,13 +254,13 @@ describe('UserService', () => {
   describe('remove', () => {
     it('should soft delete a user', async () => {
       const user = repo.seed();
-      await service.remove(user.id, { id: 'admin-id', role: 'admin' });
+      await service.remove(user.id, { id: 900001, role: 'admin' });
       expect(repo.deleted.has(user.id)).toBe(true);
     });
 
     it('should forbid deleting yourself', async () => {
       await expect(
-        service.remove('admin-id', { id: 'admin-id', role: 'admin' }),
+        service.remove(900001, { id: 900001, role: 'admin' }),
       ).rejects.toMatchObject({
         statusCode: 400,
       });
@@ -268,7 +268,7 @@ describe('UserService', () => {
 
     it('should throw 404 when the user does not exist', async () => {
       await expect(
-        service.remove('missing', { id: 'admin-id', role: 'admin' }),
+        service.remove(999999, { id: 900001, role: 'admin' }),
       ).rejects.toMatchObject({
         statusCode: 404,
       });

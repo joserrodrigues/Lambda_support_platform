@@ -10,45 +10,65 @@ import {
 export const USER_ROLES = ['admin', 'agent', 'requester'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-export class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
-  declare id: CreationOptional<string>;
-  declare name: string;
-  declare email: string;
-  declare login: string;
-  declare passwordHash: string;
-  declare role: CreationOptional<UserRole>;
-  declare active: CreationOptional<boolean>;
-  /** Incrementado no logout/troca de senha para invalidar todos os tokens emitidos. */
-  declare tokenVersion: CreationOptional<number>;
-  declare lastLoginAt: CreationOptional<Date | null>;
-  declare createdAt: CreationOptional<Date>;
-  declare updatedAt: CreationOptional<Date>;
-  declare deletedAt: CreationOptional<Date | null>;
+/**
+ * De-para provisório de `fsfadm_Usuarios.tipo` para o papel desta API.
+ * A tabela legada não tem admin/agent/requester. Ajuste este mapa se o
+ * significado de `tipo` no School Guardian for outro.
+ * 1 administrador, 4 operação/vendas, 7 demais usuários internos.
+ * `null` e `0` são tratados como inativos.
+ */
+export function roleFromTipo(tipo: number | null | undefined): UserRole {
+  if (tipo === 1) return 'admin';
+  if (tipo === 4) return 'agent';
+  return 'requester';
 }
 
-export function initUserModel(sequelize: Sequelize): typeof User {
-  User.init(
+export function isActiveTipo(tipo: number | null | undefined): boolean {
+  return tipo !== null && tipo !== undefined && tipo !== 0;
+}
+
+/** Usuário interno já existente em `fsfadm_Usuarios` (BaseEscolas). */
+export class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+  declare id: CreationOptional<number>;
+  declare name: string;
+  declare email: string;
+  declare passwordHash: string;
+  declare tipo: CreationOptional<number | null>;
+  declare lastLoginAt: Date | null;
+  declare createdAt: CreationOptional<Date>;
+}
+
+export function initUserModel(sequelize: Sequelize, model: typeof User = User): typeof User {
+  model.init(
     {
-      id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-      name: { type: DataTypes.STRING(120), allowNull: false },
-      email: { type: DataTypes.STRING(254), allowNull: false, unique: true },
-      login: { type: DataTypes.STRING(60), allowNull: false, unique: true },
-      passwordHash: { type: DataTypes.STRING(255), allowNull: false },
-      role: { type: DataTypes.ENUM(...USER_ROLES), allowNull: false, defaultValue: 'requester' },
-      active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
-      tokenVersion: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0 },
-      lastLoginAt: { type: DataTypes.DATE, allowNull: true },
-      createdAt: DataTypes.DATE,
-      updatedAt: DataTypes.DATE,
-      deletedAt: DataTypes.DATE,
+      id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+      name: { type: DataTypes.STRING(255), allowNull: false, field: 'nome' },
+      email: { type: DataTypes.STRING(255), allowNull: false },
+      passwordHash: { type: DataTypes.STRING(255), allowNull: false, field: 'senha' },
+      tipo: { type: DataTypes.INTEGER, allowNull: true },
+      lastLoginAt: { type: DataTypes.DATE, allowNull: false, field: 'dtUltLogin' },
+      createdAt: { type: DataTypes.DATE, allowNull: false, field: 'dtCriacao' },
     },
     {
       sequelize,
-      tableName: 'users',
-      paranoid: true,
+      tableName: 'fsfadm_Usuarios',
+      freezeTableName: true,
+      underscored: false,
+      timestamps: true,
+      createdAt: 'dtCriacao',
+      updatedAt: false,
+      paranoid: false,
       defaultScope: { attributes: { exclude: ['passwordHash'] } },
       scopes: { withPassword: { attributes: { include: ['passwordHash'] } } },
     },
   );
-  return User;
+  const blockWrite = (): never => {
+    throw new Error('fsfadm_Usuarios é do outro sistema: este serviço não grava nela');
+  };
+  model.addHook('beforeSave', blockWrite);
+  model.addHook('beforeDestroy', blockWrite);
+  model.addHook('beforeBulkCreate', blockWrite);
+  model.addHook('beforeBulkUpdate', blockWrite);
+  model.addHook('beforeBulkDestroy', blockWrite);
+  return model;
 }

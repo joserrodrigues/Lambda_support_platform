@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { getDummyHash, hashPassword, verifyPassword } from '../../../src/shared/password';
 
 describe('password', () => {
@@ -30,6 +31,12 @@ describe('password', () => {
     ['wrong key length', 'scrypt$1024$8$1$c2FsdA==$aGFzaA=='],
   ])('should return false for a malformed hash (%s)', async (_label, stored) => {
     await expect(verifyPassword('qualquer', stored)).resolves.toBe(false);
+  });
+
+  it('should verify a legacy md5 hash from fsfadm_Usuarios', async () => {
+    const hash = createHash('md5').update('senha-super-forte').digest('hex');
+    await expect(verifyPassword('senha-super-forte', hash)).resolves.toBe(true);
+    await expect(verifyPassword('outra-senha-123', hash)).resolves.toBe(false);
   });
 
   it('should reuse the same dummy hash across calls', async () => {

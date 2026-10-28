@@ -44,8 +44,8 @@ function strip({ passwordHash: _passwordHash, ...entity }: UserWithPassword): Us
 
 /** Repositório em memória que respeita o contrato de `UserRepository`. */
 export class InMemoryUserRepository implements UserRepository {
-  readonly users = new Map<string, UserWithPassword>();
-  readonly deleted = new Set<string>();
+  readonly users = new Map<number, UserWithPassword>();
+  readonly deleted = new Set<number>();
 
   seed(overrides: Partial<UserWithPassword> = {}): UserWithPassword {
     const user = makeUser(overrides);
@@ -53,16 +53,16 @@ export class InMemoryUserRepository implements UserRepository {
     return user;
   }
 
-  private active(id: string) {
+  private active(id: number) {
     return this.deleted.has(id) ? undefined : this.users.get(id);
   }
 
-  findById(id: string) {
+  findById(id: number) {
     const user = this.active(id);
     return Promise.resolve(user ? strip(user) : null);
   }
 
-  findByIdWithPassword(id: string) {
+  findByIdWithPassword(id: number) {
     const user = this.active(id);
     return Promise.resolve(user ? { ...user } : null);
   }
@@ -72,13 +72,13 @@ export class InMemoryUserRepository implements UserRepository {
     return Promise.resolve(user ? { ...user } : null);
   }
 
-  emailExists(email: string, excludeId?: string) {
+  emailExists(email: string, excludeId?: number) {
     return Promise.resolve(
       [...this.users.values()].some((u) => u.email === email && u.id !== excludeId),
     );
   }
 
-  loginExists(login: string, excludeId?: string) {
+  loginExists(login: string, excludeId?: number) {
     return Promise.resolve(
       [...this.users.values()].some((u) => u.login === login && u.id !== excludeId),
     );
@@ -96,7 +96,7 @@ export class InMemoryUserRepository implements UserRepository {
     return Promise.resolve(strip(this.seed(data)));
   }
 
-  update(id: string, data: UpdateUserData) {
+  update(id: number, data: UpdateUserData) {
     const user = this.active(id);
     if (!user) return Promise.resolve(null);
     const { incrementTokenVersion, ...fields } = data;
@@ -105,23 +105,32 @@ export class InMemoryUserRepository implements UserRepository {
     return Promise.resolve(strip(user));
   }
 
-  softDelete(id: string) {
+  softDelete(id: number) {
     if (!this.active(id)) return Promise.resolve(false);
     this.deleted.add(id);
     return Promise.resolve(true);
   }
 }
 
-/** Repositório de escolas em memória: `exists` responde a partir de um conjunto de ids. */
+/** Repositório de escolas em memória: `exists` e `list` a partir de id → nome. */
 export class InMemorySchoolRepository implements SchoolRepository {
-  readonly ids: Set<number>;
+  readonly schools = new Map<number, string>();
 
   constructor(ids: Iterable<number> = [1]) {
-    this.ids = new Set(ids);
+    for (const id of ids) this.schools.set(id, `Escola ${id}`);
   }
 
   exists(id: number) {
-    return Promise.resolve(this.ids.has(id));
+    return Promise.resolve(this.schools.has(id));
+  }
+
+  list({ limit, offset, name }: { limit: number; offset: number; name?: string }) {
+    const needle = name?.toLocaleLowerCase('pt-BR');
+    const all = [...this.schools.entries()]
+      .filter(([, schoolName]) => !needle || schoolName.toLocaleLowerCase('pt-BR').includes(needle))
+      .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR') || a[0] - b[0])
+      .map(([id, schoolName]) => ({ id, name: schoolName }));
+    return Promise.resolve({ rows: all.slice(offset, offset + limit), count: all.length });
   }
 }
 
@@ -154,9 +163,16 @@ export class InMemoryTicketRepository implements TicketRepository {
 
   list({ limit, offset, filters }: Pagination & { filters: TicketFilters }) {
     const all = [...this.tickets.values()]
-      .filter((ticket) =>
-        FILTER_KEYS.every((key) => filters[key] === undefined || ticket[key] === filters[key]),
-      )
+      .filter((ticket) => {
+        if (
+          filters.since &&
+          ticket.createdAt < filters.since &&
+          ticket.updatedAt < filters.since
+        ) {
+          return false;
+        }
+        return FILTER_KEYS.every((key) => filters[key] === undefined || ticket[key] === filters[key]);
+      })
       .sort(
         (a, b) =>
           b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
@@ -169,6 +185,13 @@ export class InMemoryTicketRepository implements TicketRepository {
 
   create(data: CreateTicketData) {
     return Promise.resolve(this.seed(data));
+  }
+
+  markViewed(id: string, at: Date) {
+    const ticket = this.tickets.get(id);
+    if (!ticket) return Promise.resolve(null);
+    ticket.viewedAt = at;
+    return Promise.resolve({ ...ticket });
   }
 
   update(id: string, data: UpdateTicketData) {
@@ -191,10 +214,8 @@ export class InMemoryPostRepository implements PostRepository {
 
   /** `resolveAuthor` simula o `include` do autor (apenas id e nome). */
   constructor(
-    private readonly resolveAuthor: (userId: string) => PostAuthor | null = (userId) => ({
-      id: userId,
-      name: 'Autor Teste',
-    }),
+    private readonly resolveAuthor: (userId: number | null) => PostAuthor | null = (userId) =>
+      userId == null ? null : { id: userId, name: 'Autor Teste' },
   ) {}
 
   seed(overrides: Partial<PostEntity> = {}): PostEntity {
@@ -218,6 +239,28 @@ export class InMemoryPostRepository implements PostRepository {
     });
   }
 
+  hasPublicStaffReply(ticketId: string) {
+    const found = [...this.posts.values()].some(
+      (post) => post.ticketId === ticketId && !post.isInternal && post.userId != null,
+    );
+    return Promise.resolve(found);
+  }
+
+  hasAnyPost(ticketId: string) {
+    return Promise.resolve([...this.posts.values()].some((post) => post.ticketId === ticketId));
+  }
+
+  firstPublicContents(ticketIds: string[]) {
+    const found = new Map<string, string>();
+    const rows = [...this.posts.values()]
+      .filter((post) => ticketIds.includes(post.ticketId) && !post.isInternal)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+    for (const post of rows) {
+      if (!found.has(post.ticketId)) found.set(post.ticketId, post.content);
+    }
+    return Promise.resolve(found);
+  }
+
   create(data: CreatePostData) {
     return Promise.resolve(
       this.seed({ ...data, author: this.resolveAuthor(data.userId), createdAt: new Date() }),
@@ -227,7 +270,11 @@ export class InMemoryPostRepository implements PostRepository {
   update(ticketId: string, postId: string, data: UpdatePostData) {
     const post = this.posts.get(postId);
     if (post?.ticketId !== ticketId) return Promise.resolve(null);
-    Object.assign(post, { content: data.content, updatedAt: new Date() });
+    Object.assign(post, {
+      content: data.content,
+      ...(data.isInternal !== undefined ? { isInternal: data.isInternal } : {}),
+      updatedAt: new Date(),
+    });
     return Promise.resolve({ ...post });
   }
 

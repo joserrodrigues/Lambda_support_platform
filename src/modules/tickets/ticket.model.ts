@@ -21,8 +21,9 @@ import type {
  */
 export class Ticket extends Model<InferAttributes<Ticket>, InferCreationAttributes<Ticket>> {
   declare id: CreationOptional<string>;
-  /** Id da escola (FK `schools.id`, espelha o id do School Guardian). */
+  /** Id da escola em `fsfadm_Escolas` (sem FK: a tabela é do outro sistema). */
   declare schoolId: number;
+  declare title: string | null;
   declare status: CreationOptional<TicketStatus>;
   declare devStatus: TicketDevStatus | null;
   declare entryType: TicketEntryType;
@@ -36,17 +37,23 @@ export class Ticket extends Model<InferAttributes<Ticket>, InferCreationAttribut
   declare technicalResponseAt: Date | null;
   /** Responsável pelo ticket na escola (texto livre, nem sempre é um usuário). */
   declare schoolResponsible: string | null;
+  /** Id em `usersWEB` do banco do colégio. Sem FK. Quem criou o chamado no CMS. */
+  declare schoolUserId: number | null;
+  /** Nome (ou username) desse usuário no momento da criação. */
+  declare schoolUserName: string | null;
+  declare viewedAt: Date | null;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 
   declare school?: NonAttribute<School>;
 }
 
-export function initTicketModel(sequelize: Sequelize): typeof Ticket {
-  Ticket.init(
+export function initTicketModel(sequelize: Sequelize, model: typeof Ticket = Ticket): typeof Ticket {
+  model.init(
     {
       id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       schoolId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+      title: { type: DataTypes.STRING(191), allowNull: true },
       status: { type: DataTypes.STRING(30), allowNull: false, defaultValue: 'aguardando' },
       devStatus: { type: DataTypes.STRING(30), allowNull: true },
       entryType: { type: DataTypes.STRING(30), allowNull: false },
@@ -62,10 +69,13 @@ export function initTicketModel(sequelize: Sequelize): typeof Ticket {
       responseAt: { type: DataTypes.DATE, allowNull: true },
       technicalResponseAt: { type: DataTypes.DATE, allowNull: true },
       schoolResponsible: { type: DataTypes.STRING(120), allowNull: true },
+      schoolUserId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, field: 'school_user_id' },
+      schoolUserName: { type: DataTypes.STRING(191), allowNull: true, field: 'school_user_name' },
+      viewedAt: { type: DataTypes.DATE, allowNull: true, field: 'viewed_at' },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,
     },
-    { sequelize, tableName: 'tickets' },
+    { sequelize, tableName: 'fsfadm_tickets', freezeTableName: true },
   );
-  return Ticket;
+  return model;
 }

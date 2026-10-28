@@ -41,6 +41,7 @@ describe('OpenAPI', () => {
       schoolRepository: new InMemorySchoolRepository(),
       hasher: fakeHasher,
       logger: false,
+      manageDatabases: false,
       openapi,
     });
     await instance.ready();
@@ -80,10 +81,10 @@ describe('OpenAPI', () => {
       expect(customDoc.servers).toEqual([{ url: 'https://api.example.test' }]);
     });
 
-    it('should document exactly the 19 operations, hiding OPTIONS and HEAD', () => {
+    it('should document exactly the 20 operations, hiding OPTIONS and HEAD', () => {
       const keys = operationsOf(doc).map(({ key }) => key);
 
-      expect(keys).toHaveLength(19);
+      expect(keys).toHaveLength(20);
       expect(keys.some((key) => key.startsWith('OPTIONS') || key.startsWith('HEAD'))).toBe(false);
     });
 
@@ -91,7 +92,7 @@ describe('OpenAPI', () => {
       const operations = operationsOf(doc).map(({ operation }) => operation);
       const ids = operations.map((operation) => operation.operationId);
 
-      expect(new Set(ids).size).toBe(19);
+      expect(new Set(ids).size).toBe(20);
       for (const operation of operations) {
         expect(operation.operationId).toEqual(expect.any(String));
         expect(operation.summary).toEqual(expect.any(String));
@@ -131,7 +132,7 @@ describe('OpenAPI', () => {
         ({ operation }) => !Array.isArray(operation.security) || operation.security.length > 0,
       );
 
-      expect(protectedOps).toHaveLength(17);
+      expect(protectedOps).toHaveLength(18);
       for (const { key, operation } of protectedOps) {
         const responses = responsesOf(operation);
         expect({ key, codes: Object.keys(responses) }).toEqual({

@@ -733,7 +733,7 @@ describe('Ticket routes', () => {
     it('should forbid another agent from editing the post (BOLA)', async () => {
       const { token } = await loginAs(ctx, 'agent');
       const ticket = ctx.tickets.seed();
-      const post = ctx.posts.seed({ ticketId: ticket.id, userId: randomUUID() });
+      const post = ctx.posts.seed({ ticketId: ticket.id, userId: 424242 });
 
       const res = await request(token, 'PATCH', `/tickets/${ticket.id}/posts/${post.id}`, {
         content: 'Editado',
@@ -746,7 +746,7 @@ describe('Ticket routes', () => {
     it('should forbid another agent from deleting the post (BOLA)', async () => {
       const { token } = await loginAs(ctx, 'agent');
       const ticket = ctx.tickets.seed();
-      const post = ctx.posts.seed({ ticketId: ticket.id, userId: randomUUID() });
+      const post = ctx.posts.seed({ ticketId: ticket.id, userId: 424242 });
 
       const res = await request(token, 'DELETE', `/tickets/${ticket.id}/posts/${post.id}`);
 
@@ -757,7 +757,7 @@ describe('Ticket routes', () => {
     it('should let an admin edit and delete posts of other users', async () => {
       const { token } = await loginAs(ctx, 'admin');
       const ticket = ctx.tickets.seed();
-      const post = ctx.posts.seed({ ticketId: ticket.id, userId: randomUUID() });
+      const post = ctx.posts.seed({ ticketId: ticket.id, userId: 424242 });
 
       const patch = await request(token, 'PATCH', `/tickets/${ticket.id}/posts/${post.id}`, {
         content: 'Moderado',
@@ -805,7 +805,7 @@ describe('Ticket routes', () => {
 
       const res = await request(token, 'PATCH', `/tickets/${ticket.id}/posts/${post.id}`, {
         content: 'Editado',
-        userId: randomUUID(),
+        userId: 424242,
       });
 
       expect(res.statusCode).toBe(400);

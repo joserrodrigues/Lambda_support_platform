@@ -1,0 +1,144 @@
+{
+  "info": {
+    "_postman_id": "sg-support-inbound",
+    "name": "School Guardian — APIs de entrada",
+    "description": "Rotas do centralizador de e-mail, WhatsApp e melhoria de texto.\n\n1. Importe esta collection.\n2. Preencha a variável `inboundSecret` com o molde da chave (ele pode conter %Y% %m% %d% %H% %i% %s%). A collection monta `date` e `hash` antes de cada envio.\n3. Ajuste `baseUrl` se não for o local.\n\nLocal: http://127.0.0.1:3000\nHom: https://suporte-t.schoolguardian.app\nProd: https://suporte.schoolguardian.app\n\nO contrato está em docs/inbound-centralizador.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const PLACEHOLDERS = ['%Y%', '%m%', '%d%', '%H%', '%i%', '%s%'];",
+          "function pad(n) { return String(n).padStart(2, '0'); }",
+          "function dateParts(date) {",
+          "  const dashed = /^(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$/.exec(String(date).trim());",
+          "  if (dashed) return dashed.slice(1);",
+          "  const compact = /^(\\d{4})(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})$/.exec(String(date).trim());",
+          "  return compact ? compact.slice(1) : null;",
+          "}",
+          "function quote(value) {",
+          "  let out = '\"';",
+          "  for (const char of value) {",
+          "    const code = char.codePointAt(0) || 0;",
+          "    if (char === '\"') out += '\\\\\"';",
+          "    else if (char === '\\\\') out += '\\\\\\\\';",
+          "    else if (char === '\\b') out += '\\\\b';",
+          "    else if (char === '\\f') out += '\\\\f';",
+          "    else if (char === '\\n') out += '\\\\n';",
+          "    else if (char === '\\r') out += '\\\\r';",
+          "    else if (char === '\\t') out += '\\\\t';",
+          "    else if (code < 0x20 || code > 0x7f) {",
+          "      for (const unit of Array.from(char)) out += '\\\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0');",
+          "    } else out += char;",
+          "  }",
+          "  return out + '\"';",
+          "}",
+          "function encode(value) {",
+          "  if (value === null) return 'null';",
+          "  if (typeof value === 'boolean') return value ? 'true' : 'false';",
+          "  if (typeof value === 'number') return JSON.stringify(value);",
+          "  if (typeof value === 'string') return quote(value);",
+          "  if (Array.isArray(value)) return '[' + value.map(encode).join(',') + ']';",
+          "  const keys = Object.keys(value).sort();",
+          "  return '{' + keys.map((key) => quote(key) + ':' + encode(value[key])).join(',') + '}';",
+          "}",
+          "function mountSecret(template, date) {",
+          "  const parts = dateParts(date);",
+          "  if (!parts) return template;",
+          "  return PLACEHOLDERS.reduce((value, token, index) => value.split(token).join(parts[index] || ''), template);",
+          "}",
+          "const now = new Date();",
+          "const date = now.getUTCFullYear() + '-' + pad(now.getUTCMonth() + 1) + '-' + pad(now.getUTCDate()) + ' ' + pad(now.getUTCHours()) + ':' + pad(now.getUTCMinutes()) + ':' + pad(now.getUTCSeconds());",
+          "const template = pm.collectionVariables.get('inboundSecret') || '';",
+          "const secret = mountSecret(template, date).trim();",
+          "if (!secret) throw new Error('Preencha a variável inboundSecret com o molde da chave.');",
+          "const payload = JSON.parse(pm.request.body.raw);",
+          "payload.date = date;",
+          "delete payload.hash;",
+          "payload.hash = CryptoJS.HmacSHA256(encode(payload), secret).toString(CryptoJS.enc.Hex);",
+          "pm.request.body.update({ mode: 'raw', raw: JSON.stringify(payload), options: { raw: { language: 'json' } } });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3000" },
+    { "key": "inboundSecret", "value": "" },
+    { "key": "schoolId", "value": "1" },
+    { "key": "ticketId", "value": "" },
+    { "key": "aiId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Criar chamado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code !== 201) return;",
+              "pm.collectionVariables.set('ticketId', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"schoolId\": {{schoolId}},\n  \"title\": \"Catraca parada\",\n  \"entryType\": \"whatsapp\",\n  \"content\": \"<p>A catraca parou.</p>\",\n  \"schoolResponsible\": \"Maria\",\n  \"priority\": true\n}"
+        },
+        "url": "{{baseUrl}}/inbound/tickets",
+        "description": "Cria o card e o primeiro registro público. A collection acrescenta date e hash. O id da resposta fica em ticketId."
+      }
+    },
+    {
+      "name": "Buscar chamados",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"page\": 1,\n  \"pageSize\": 100,\n  \"schoolId\": {{schoolId}}\n}"
+        },
+        "url": "{{baseUrl}}/inbound/tickets/search",
+        "description": "Página de até 100 cards. Não marca o card como visto. Filtros opcionais: status, devStatus, entryType, slaType, priority, supportLevel2 e since."
+      }
+    },
+    {
+      "name": "Buscar desde um instante",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"page\": 1,\n  \"pageSize\": 100,\n  \"since\": \"2026-10-09T00:00:00Z\"\n}"
+        },
+        "url": "{{baseUrl}}/inbound/tickets/search",
+        "description": "Cards criados ou atualizados a partir de since. Troque a data pela hora da última busca."
+      }
+    },
+    {
+      "name": "Melhorar texto",
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"<p>A catraca parou. Podem verificar?</p>\"\n}"
+        },
+        "url": "{{baseUrl}}/inbound/text/improve",
+        "description": "Devolve o texto melhorado e não grava no chamado. Com mais de uma IA, inclua aiId. ticketId é opcional e não é salvo."
+      }
+    }
+  ]
+}

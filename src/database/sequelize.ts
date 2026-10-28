@@ -1,33 +1,36 @@
 import mysql2 from 'mysql2';
 import { Sequelize } from 'sequelize';
 import type { AppConfig } from '../config/env';
-import { initModels } from './models';
+import { Errors } from '../shared/errors';
+import { defaultModels, type AppModels } from './context';
+import { bindModels, initModels } from './models';
+import {
+  connectionFor,
+  sameConnection,
+  type DatabaseConnectionConfig,
+  type DatabaseTarget,
+} from './routing';
 
 let instance: Sequelize | undefined;
 
-/**
- * Retorna uma instância única do Sequelize. Em Lambda, a instância é criada fora
- * do handler e reutilizada entre invocações (warm start), evitando abrir uma nova
- * conexão a cada requisição.
- */
-export function getSequelize(config: AppConfig): Sequelize {
-  if (instance) return instance;
+const pools = new Map<DatabaseTarget, { sequelize: Sequelize; models: AppModels }>();
 
-  instance = new Sequelize(config.DB_NAME, config.DB_USER, config.DB_PASSWORD, {
-    host: config.DB_HOST,
-    port: config.DB_PORT,
+function openSequelize(settings: DatabaseConnectionConfig, config: AppConfig): Sequelize {
+  return new Sequelize(settings.name, settings.user, settings.password, {
+    host: settings.host,
+    port: settings.port,
     dialect: 'mysql',
-    // Import explícito para o bundle do esbuild (evita require dinâmico do Sequelize).
     dialectModule: mysql2,
     logging: config.DB_LOGGING ? (sql) => process.stdout.write(`${sql}\n`) : false,
     timezone: '+00:00',
-    dialectOptions: config.DB_SSL ? { ssl: { rejectUnauthorized: true } } : {},
+    dialectOptions: settings.ssl
+      ? { ssl: { rejectUnauthorized: false } }
+      : {},
     pool: {
       max: config.DB_POOL_MAX,
       min: 0,
       idle: 10_000,
       acquire: 10_000,
-      // Em Lambda, conexões ociosas são encerradas antes de o container congelar.
       evict: 1_000,
     },
     define: {
@@ -35,13 +38,50 @@ export function getSequelize(config: AppConfig): Sequelize {
       timestamps: true,
     },
   });
+}
 
+/**
+ * Conexão de `DB_*` (localhost). Em Lambda a instância é reutilizada entre invocações.
+ */
+export function getSequelize(config: AppConfig): Sequelize {
+  if (instance) return instance;
+
+  const local = connectionFor(config, 'local');
+  if (!local) throw new Error('DB_* não configurado');
+  instance = openSequelize(local, config);
   initModels(instance);
+  pools.set('local', { sequelize: instance, models: defaultModels });
   return instance;
 }
 
+const NOT_CONFIGURED = 'Banco deste ambiente não está configurado';
+
+/** Models da conexão escolhida pela URL. Cria o pool na primeira vez. */
+export function modelsFor(config: AppConfig, target: DatabaseTarget): AppModels {
+  const cached = pools.get(target);
+  if (cached) return cached.models;
+
+  const settings = connectionFor(config, target);
+  if (!settings) throw Errors.serviceUnavailable(NOT_CONFIGURED);
+
+  const local = connectionFor(config, 'local');
+  if (!local) throw Errors.serviceUnavailable(NOT_CONFIGURED);
+  if (target === 'local' || sameConnection(settings, local)) {
+    getSequelize(config);
+    return defaultModels;
+  }
+
+  const sequelize = openSequelize(settings, config);
+  const models = bindModels(sequelize);
+  pools.set(target, { sequelize, models });
+  return models;
+}
+
 export async function closeSequelize(): Promise<void> {
-  if (!instance) return;
-  await instance.close();
+  const closing = new Set<Sequelize>();
+  if (instance) closing.add(instance);
+  for (const pool of pools.values()) closing.add(pool.sequelize);
+  pools.clear();
   instance = undefined;
+  await Promise.all([...closing].map((sequelize) => sequelize.close()));
 }

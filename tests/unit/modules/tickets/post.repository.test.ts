@@ -22,10 +22,9 @@ const authorInclude = {
   as: 'author',
   attributes: ['id', 'name'],
   required: false,
-  paranoid: false,
 };
 
-function buildModel({ withAuthor = true, userId = 'b5f1b2a8-6f6e-4c38-9d3c-2a7d2f1e9c03' } = {}) {
+function buildModel({ withAuthor = true, userId = 42 } = {}) {
   const author = makeUser({ id: userId, name: 'Ana Agente' });
   const now = new Date('2026-01-01T00:00:00.000Z');
   const instance = Post.build(
@@ -68,6 +67,9 @@ describe('SequelizePostRepository', () => {
         ticketId: TICKET_ID,
         userId: author.id,
         content: 'Olá',
+        isInternal: false,
+        schoolUserId: null,
+        schoolUserName: null,
         author: { id: author.id, name: 'Ana Agente' },
         createdAt: now,
         updatedAt: now,
@@ -123,7 +125,7 @@ describe('SequelizePostRepository', () => {
       const created = buildModel({ withAuthor: false }).instance;
       const create = jest.spyOn(Post, 'create').mockResolvedValue(created);
       const findOne = jest.spyOn(Post, 'findOne').mockResolvedValue(instance);
-      const input = { ticketId: TICKET_ID, userId: author.id, content: 'Olá' };
+      const input = { ticketId: TICKET_ID, userId: author.id, content: 'Olá', isInternal: false };
 
       const result = await repo.create(input);
 
@@ -140,7 +142,12 @@ describe('SequelizePostRepository', () => {
       jest.spyOn(Post, 'create').mockResolvedValue(instance);
       jest.spyOn(Post, 'findOne').mockResolvedValue(null);
 
-      const result = await repo.create({ ticketId: TICKET_ID, userId: author.id, content: 'Olá' });
+      const result = await repo.create({
+        ticketId: TICKET_ID,
+        userId: author.id,
+        content: 'Olá',
+        isInternal: false,
+      });
 
       expect(result).toMatchObject({ id: POST_ID, author: null });
     });

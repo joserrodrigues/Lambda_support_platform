@@ -1,3 +1,4 @@
+import { defaultModels, runWithDatabase } from '../../../../src/database/context';
 import { AuthService } from '../../../../src/modules/auth/auth.service';
 import type { AccessTokenPayload, TokenSigner } from '../../../../src/modules/auth/auth.types';
 import { fakeHasher, InMemoryUserRepository } from '../../../helpers/fakes';
@@ -49,8 +50,19 @@ describe('AuthService', () => {
       });
       expect(result.user).not.toHaveProperty('passwordHash');
       expect(signer.sign).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: user.id, role: 'requester', ver: 0, auth_time: NOW }),
+        expect.objectContaining({ sub: String(user.id), role: 'requester', ver: 0, auth_time: NOW }),
       );
+      expect(signer.sign.mock.calls[0]?.[0]).not.toHaveProperty('env');
+    });
+
+    it('should stamp the token with the database of the request', async () => {
+      repo.seed({ email: 'ana@escola.com', passwordHash: 'hashed:senha-super-forte' });
+
+      await runWithDatabase('hom', defaultModels, () =>
+        service.login({ email: 'ana@escola.com', password: 'senha-super-forte' }),
+      );
+
+      expect(signer.sign).toHaveBeenCalledWith(expect.objectContaining({ env: 'hom' }));
     });
 
     it('should record lastLoginAt', async () => {
@@ -95,7 +107,7 @@ describe('AuthService', () => {
   describe('validateSession', () => {
     it('should return the user when the session is valid', async () => {
       const user = repo.seed();
-      await expect(service.validateSession(payloadFor({ sub: user.id }))).resolves.toMatchObject({
+      await expect(service.validateSession(payloadFor({ sub: String(user.id) }))).resolves.toMatchObject({
         id: user.id,
       });
     });
@@ -103,7 +115,7 @@ describe('AuthService', () => {
     it('should reject when the absolute session lifetime is exceeded', async () => {
       const user = repo.seed();
       await expect(
-        service.validateSession(payloadFor({ sub: user.id, auth_time: NOW - 3601 })),
+        service.validateSession(payloadFor({ sub: String(user.id), auth_time: NOW - 3601 })),
       ).rejects.toMatchObject({
         statusCode: 401,
         message: expect.stringContaining('Sessão expirada') as string,
@@ -113,7 +125,7 @@ describe('AuthService', () => {
     it('should reject a revoked token (tokenVersion mismatch)', async () => {
       const user = repo.seed({ tokenVersion: 2 });
       await expect(
-        service.validateSession(payloadFor({ sub: user.id, ver: 1 })),
+        service.validateSession(payloadFor({ sub: String(user.id), ver: 1 })),
       ).rejects.toMatchObject({
         statusCode: 401,
       });
@@ -121,7 +133,7 @@ describe('AuthService', () => {
 
     it('should reject an inactive or missing user', async () => {
       const inactive = repo.seed({ active: false });
-      await expect(service.validateSession(payloadFor({ sub: inactive.id }))).rejects.toMatchObject(
+      await expect(service.validateSession(payloadFor({ sub: String(inactive.id) }))).rejects.toMatchObject(
         {
           statusCode: 401,
         },
@@ -134,7 +146,7 @@ describe('AuthService', () => {
     it('should reject tokens without the custom claims', async () => {
       const user = repo.seed();
       const payload = {
-        ...payloadFor({ sub: user.id }),
+        ...payloadFor({ sub: String(user.id) }),
         ver: undefined,
       } as unknown as AccessTokenPayload;
       await expect(service.validateSession(payload)).rejects.toMatchObject({ statusCode: 401 });
@@ -146,11 +158,11 @@ describe('AuthService', () => {
       const user = repo.seed({ role: 'agent', tokenVersion: 3 });
       await service.refresh(
         user,
-        payloadFor({ sub: user.id, auth_time: NOW - 100, role: 'requester' }),
+        payloadFor({ sub: String(user.id), auth_time: NOW - 100, role: 'requester' }),
       );
 
       expect(signer.sign).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: user.id, role: 'agent', ver: 3, auth_time: NOW - 100 }),
+        expect.objectContaining({ sub: String(user.id), role: 'agent', ver: 3, auth_time: NOW - 100 }),
       );
     });
   });
@@ -173,7 +185,7 @@ describe('AuthService', () => {
     const user = repo.seed();
     const authTime = Math.floor(Date.now() / 1000);
     await expect(
-      real.validateSession(payloadFor({ sub: user.id, auth_time: authTime })),
+      real.validateSession(payloadFor({ sub: String(user.id), auth_time: authTime })),
     ).resolves.toBeDefined();
   });
 });

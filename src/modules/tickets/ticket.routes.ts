@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { ticketImageUploadRoutes } from './image.routes';
 import { z } from 'zod';
 import { currentUser } from '../../plugins/auth';
 import {
@@ -179,4 +180,6 @@ export const ticketRoutes: FastifyPluginAsyncZod<{ ticketService: TicketService 
       return reply.status(204).send(null);
     },
   );
+
+  await fastify.register(ticketImageUploadRoutes);
 };

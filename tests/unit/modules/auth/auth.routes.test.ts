@@ -129,7 +129,7 @@ describe('Auth routes', () => {
     it('should reject a token signed with another secret', async () => {
       const user = ctx.repo.seed();
       const token = sign(
-        { sub: user.id, role: user.role, ver: 0, auth_time: Math.floor(Date.now() / 1000) },
+        { sub: String(user.id), role: user.role, ver: 0, auth_time: Math.floor(Date.now() / 1000) },
         { key: 'another-secret-with-at-least-32-characters' },
       );
       const res = await ctx.app.inject({ method: 'GET', url: '/auth/me', headers: bearer(token) });
@@ -139,7 +139,7 @@ describe('Auth routes', () => {
     it('should reject an unsigned token (alg: none)', async () => {
       const user = ctx.repo.seed();
       const token = createSigner({ algorithm: 'none' })({
-        sub: user.id,
+        sub: String(user.id),
         role: user.role,
         ver: 0,
         auth_time: Math.floor(Date.now() / 1000),
@@ -155,7 +155,7 @@ describe('Auth routes', () => {
       const past = Math.floor(Date.now() / 1000) - 1200;
       const token = sign(
         {
-          sub: user.id,
+          sub: String(user.id),
           role: user.role,
           ver: 0,
           auth_time: past,
@@ -171,7 +171,7 @@ describe('Auth routes', () => {
     it('should reject a token with a different audience', async () => {
       const user = ctx.repo.seed();
       const token = sign(
-        { sub: user.id, role: user.role, ver: 0, auth_time: Math.floor(Date.now() / 1000) },
+        { sub: String(user.id), role: user.role, ver: 0, auth_time: Math.floor(Date.now() / 1000) },
         { aud: 'other-api' },
       );
       const res = await ctx.app.inject({ method: 'GET', url: '/auth/me', headers: bearer(token) });

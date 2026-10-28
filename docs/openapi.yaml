@@ -41,9 +41,9 @@ components:
       type: object
       properties:
         id:
-          type: string
-          format: uuid
-          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
         name:
           type: string
         email:
@@ -130,6 +130,50 @@ components:
         - tokenType
         - expiresIn
         - user
+      additionalProperties: false
+    School:
+      type: object
+      properties:
+        id:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+        name:
+          type: string
+      required:
+        - id
+        - name
+      additionalProperties: false
+    SchoolList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/School"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            pageSize:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+            total:
+              type: integer
+              minimum: -9007199254740991
+              maximum: 9007199254740991
+          required:
+            - page
+            - pageSize
+            - total
+          additionalProperties: false
+      required:
+        - data
+        - meta
       additionalProperties: false
     TicketStatus:
       type: string
@@ -283,9 +327,9 @@ components:
             - type: object
               properties:
                 id:
-                  type: string
-                  format: uuid
-                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
                 name:
                   type: string
               required:
@@ -1491,9 +1535,9 @@ paths:
         - users
       parameters:
         - schema:
-            type: string
-            format: uuid
-            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
           in: path
           name: id
           required: true
@@ -1702,9 +1746,9 @@ paths:
               $ref: "#/components/schemas/UpdateUserRequest"
       parameters:
         - schema:
-            type: string
-            format: uuid
-            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
           in: path
           name: id
           required: true
@@ -1936,9 +1980,9 @@ paths:
         - users
       parameters:
         - schema:
-            type: string
-            format: uuid
-            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
           in: path
           name: id
           required: true
@@ -2045,6 +2089,198 @@ paths:
                           type: string
         "404":
           description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "429":
+          description: Limite de requisições excedido
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "500":
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+  /schools:
+    get:
+      operationId: listSchools
+      summary: Lista id e nome das escolas
+      tags:
+        - schools
+      parameters:
+        - schema:
+            default: 1
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+          in: query
+          name: page
+          required: false
+        - schema:
+            default: 20
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 100
+          in: query
+          name: pageSize
+          required: false
+        - schema:
+            type: string
+            maxLength: 160
+          in: query
+          name: name
+          required: false
+      responses:
+        "200":
+          description: Default Response
+          headers:
+            x-access-token:
+              schema:
+                type: string
+              description: Novo Bearer token (validade renovada). O cliente deve substituir o
+                token armazenado por este valor.
+            x-access-token-expires-in:
+              schema:
+                type: string
+                example: "600"
+              description: Validade do novo token, em segundos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchoolList"
+        "400":
+          description: Dados inválidos (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Token ausente, inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - statusCode
+                  - code
+                  - message
+                properties:
+                  statusCode:
+                    type: integer
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - field
+                        - message
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
+        "403":
+          description: Usuário sem permissão para este recurso
           content:
             application/json:
               schema:
@@ -4263,6 +4499,8 @@ tags:
     description: Login, sessão e logout
   - name: users
     description: Gestão de usuários
+  - name: schools
+    description: Escolas (somente leitura, para seleção)
   - name: tickets
     description: Tickets de suporte
   - name: posts

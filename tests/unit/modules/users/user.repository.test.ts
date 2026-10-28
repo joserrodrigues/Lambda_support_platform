@@ -39,13 +39,13 @@ describe('SequelizeUserRepository', () => {
 
       const result = await repo.findById(data.id);
 
-      expect(result).toMatchObject({ id: data.id, email: data.email, login: data.login });
+      expect(result).toMatchObject({ id: data.id, email: data.email, login: data.email });
       expect(result).not.toHaveProperty('passwordHash');
     });
 
     it('should return null when not found', async () => {
       jest.spyOn(User, 'findByPk').mockResolvedValue(null);
-      await expect(repo.findById('x')).resolves.toBeNull();
+      await expect(repo.findById(999)).resolves.toBeNull();
     });
   });
 
@@ -72,45 +72,35 @@ describe('SequelizeUserRepository', () => {
     it('should return null when the user is not found by id', async () => {
       const scoped = { findByPk: jest.fn().mockResolvedValue(null) };
       jest.spyOn(User, 'scope').mockReturnValue(scoped as unknown as typeof User);
-      await expect(repo.findByIdWithPassword('x')).resolves.toBeNull();
+      await expect(repo.findByIdWithPassword(999)).resolves.toBeNull();
     });
   });
 
   describe('emailExists', () => {
-    it('should include soft deleted rows', async () => {
+    it('should count rows with the same e-mail', async () => {
       const count = jest.spyOn(User, 'count').mockResolvedValue(1);
 
       await expect(repo.emailExists('a@escola.com')).resolves.toBe(true);
-      expect(count).toHaveBeenCalledWith({ where: { email: 'a@escola.com' }, paranoid: false });
+      expect(count).toHaveBeenCalledWith({ where: { email: 'a@escola.com' } });
     });
 
     it('should exclude the given id', async () => {
       const count = jest.spyOn(User, 'count').mockResolvedValue(0);
 
-      await expect(repo.emailExists('a@escola.com', 'id-1')).resolves.toBe(false);
+      await expect(repo.emailExists('a@escola.com', 8)).resolves.toBe(false);
       expect(count).toHaveBeenCalledWith({
-        where: { email: 'a@escola.com', id: { [Op.ne]: 'id-1' } },
-        paranoid: false,
+        where: { email: 'a@escola.com', id: { [Op.ne]: 8 } },
       });
     });
   });
 
   describe('loginExists', () => {
-    it('should include soft deleted rows', async () => {
-      const count = jest.spyOn(User, 'count').mockResolvedValue(1);
+    it('should not query a login column that does not exist on fsfadm_Usuarios', async () => {
+      const count = jest.spyOn(User, 'count');
 
-      await expect(repo.loginExists('maria.silva')).resolves.toBe(true);
-      expect(count).toHaveBeenCalledWith({ where: { login: 'maria.silva' }, paranoid: false });
-    });
-
-    it('should exclude the given id', async () => {
-      const count = jest.spyOn(User, 'count').mockResolvedValue(0);
-
-      await expect(repo.loginExists('maria.silva', 'id-1')).resolves.toBe(false);
-      expect(count).toHaveBeenCalledWith({
-        where: { login: 'maria.silva', id: { [Op.ne]: 'id-1' } },
-        paranoid: false,
-      });
+      await expect(repo.loginExists('maria.silva')).resolves.toBe(false);
+      await expect(repo.loginExists('maria.silva', 8)).resolves.toBe(false);
+      expect(count).not.toHaveBeenCalled();
     });
   });
 
@@ -131,51 +121,54 @@ describe('SequelizeUserRepository', () => {
     });
   });
 
-  it('should create a user', async () => {
-    const { data, instance } = buildModel();
-    const create = jest.spyOn(User, 'create').mockResolvedValue(instance);
-    const input = {
-      name: data.name,
-      email: data.email,
-      login: data.login,
-      passwordHash: data.passwordHash,
-      role: data.role,
-    };
+  it('should refuse to insert into the shared user table', async () => {
+    const create = jest.spyOn(User, 'create');
+    const { data } = buildModel();
 
-    await expect(repo.create(input)).resolves.toMatchObject({ id: data.id });
-    expect(create).toHaveBeenCalledWith(input);
+    await expect(
+      repo.create({
+        name: data.name,
+        email: data.email,
+        login: data.login,
+        passwordHash: data.passwordHash,
+        role: data.role,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(create).not.toHaveBeenCalled();
   });
 
   describe('update', () => {
-    it('should set fields, increment tokenVersion and save', async () => {
-      const { data, instance } = buildModel({ tokenVersion: 2 });
-      jest.spyOn(User, 'findByPk').mockResolvedValue(instance);
+    it('should refuse to change columns of the shared user table', async () => {
+      const { data, instance } = buildModel();
+      const findByPk = jest.spyOn(User, 'findByPk');
 
-      const result = await repo.update(data.id, { name: 'Novo', incrementTokenVersion: true });
-
-      expect(result).toMatchObject({ name: 'Novo', tokenVersion: 3 });
-      expect(instance.save).toHaveBeenCalled();
-    });
-
-    it('should not touch tokenVersion when not requested', async () => {
-      const { data, instance } = buildModel({ tokenVersion: 2 });
-      jest.spyOn(User, 'findByPk').mockResolvedValue(instance);
-      await expect(repo.update(data.id, { name: 'Novo' })).resolves.toMatchObject({
-        tokenVersion: 2,
+      await expect(repo.update(data.id, { name: 'Novo', incrementTokenVersion: true })).rejects.toMatchObject({
+        statusCode: 403,
       });
+      expect(findByPk).not.toHaveBeenCalled();
+      expect(instance.save).not.toHaveBeenCalled();
     });
 
-    it('should return null when not found', async () => {
+    it('should not persist lastLoginAt', async () => {
+      const { data, instance } = buildModel();
+      jest.spyOn(User, 'findByPk').mockResolvedValue(instance);
+
+      await expect(repo.update(data.id, { lastLoginAt: new Date() })).resolves.toMatchObject({
+        id: data.id,
+      });
+      expect(instance.save).not.toHaveBeenCalled();
+    });
+
+    it('should return null when the user does not exist', async () => {
       jest.spyOn(User, 'findByPk').mockResolvedValue(null);
-      await expect(repo.update('x', { name: 'Novo' })).resolves.toBeNull();
+      await expect(repo.update(999, { incrementTokenVersion: true })).resolves.toBeNull();
     });
   });
 
-  it('should soft delete and report whether a row was affected', async () => {
-    const destroy = jest.spyOn(User, 'destroy').mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+  it('should refuse to delete a shared user', async () => {
+    const destroy = jest.spyOn(User, 'destroy');
 
-    await expect(repo.softDelete('id-1')).resolves.toBe(true);
-    await expect(repo.softDelete('id-2')).resolves.toBe(false);
-    expect(destroy).toHaveBeenCalledWith({ where: { id: 'id-1' } });
+    await expect(repo.softDelete(1)).rejects.toMatchObject({ statusCode: 403 });
+    expect(destroy).not.toHaveBeenCalled();
   });
 });

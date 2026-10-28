@@ -35,7 +35,7 @@ describe('initModels', () => {
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     });
-    expect(Ticket.getTableName()).toBe('tickets');
+    expect(Ticket.getTableName()).toBe('fsfadm_tickets');
   });
 
   it('should default supportLevel2 to 0', () => {
@@ -56,17 +56,18 @@ describe('initModels', () => {
   });
 
   it('should map the post attributes and table', () => {
-    expect(Post.getTableName()).toBe('posts');
+    expect(Post.getTableName()).toBe('fsfadm_posts');
     expect(Post.getAttributes().ticketId.field).toBe('ticket_id');
     expect(Post.getAttributes().userId.field).toBe('user_id');
   });
 
-  it('should map the user login column', () => {
-    expect(User.getAttributes().login).toMatchObject({
-      field: 'login',
-      allowNull: false,
-      unique: true,
-    });
+  it('should map the user model onto fsfadm_Usuarios', () => {
+    expect(User.getTableName()).toBe('fsfadm_Usuarios');
+    expect(User.getAttributes().name.field).toBe('nome');
+    expect(User.getAttributes().passwordHash.field).toBe('senha');
+    expect(User.getAttributes().lastLoginAt.field).toBe('dtUltLogin');
+    expect(User.getAttributes().createdAt.field).toBe('dtCriacao');
+    expect(User.getAttributes().tipo.field).toBe('tipo');
   });
 
   it('should link tickets, posts and users', () => {

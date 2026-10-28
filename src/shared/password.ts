@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
 /**
  * Hash de senha com scrypt (recomendado pela OWASP Password Storage Cheat Sheet).
@@ -27,7 +27,17 @@ export async function hashPassword(password: string): Promise<string> {
   return ['scrypt', N, r, p, salt.toString('base64'), key.toString('base64')].join('$');
 }
 
+/** Senhas já gravadas em `fsfadm_Usuarios.senha` pelo sistema legado (MD5 hex, sem salt). */
+function verifyMd5(password: string, stored: string): boolean {
+  const actual = createHash('md5').update(password).digest();
+  const expected = Buffer.from(stored, 'hex');
+  if (expected.length !== actual.length) return false;
+  return timingSafeEqual(actual, expected);
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (/^[a-f0-9]{32}$/i.test(stored)) return verifyMd5(password, stored);
+
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
   const [, nRaw, rRaw, pRaw, saltB64, hashB64] = parts as [

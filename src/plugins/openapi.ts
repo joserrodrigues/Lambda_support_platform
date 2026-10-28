@@ -71,6 +71,10 @@ const OPERATIONS: Record<string, [operationId: string, summary: string]> = {
   'GET /tickets/:id/posts': ['listTicketPosts', 'Lista os posts do ticket (mais antigos primeiro)'],
   'PATCH /tickets/:id/posts/:postId': ['updateTicketPost', 'Edita um post (autor ou admin)'],
   'DELETE /tickets/:id/posts/:postId': ['deleteTicketPost', 'Exclui um post (autor ou admin)'],
+  'GET /schools': ['listSchools', 'Lista id e nome das escolas'],
+  'POST /inbound/tickets': ['createInboundTicket', 'Cria um chamado a partir do centralizador de e-mail ou WhatsApp'],
+  'POST /inbound/tickets/search': ['searchInboundTickets', 'Busca chamados para o centralizador, em páginas de até 100'],
+  'POST /inbound/text/improve': ['improveInboundText', 'Devolve o texto do campo melhorado, sem gravar no chamado'],
 };
 
 /** Respostas de erro específicas de cada rota (além das comuns). */
@@ -81,6 +85,21 @@ const ROUTE_ERRORS: Record<string, Record<string, string>> = {
   'GET /users/:id': { '404': 'Usuário não encontrado' },
   'DELETE /users/:id': { '404': 'Usuário não encontrado' },
   'POST /tickets': { '422': 'Escola não encontrada' },
+  'POST /inbound/tickets': {
+    '401': 'Chave inválida',
+    '422': 'Dados do chamado inválidos ou escola não encontrada',
+    '503': 'Chave de entrada não configurada',
+  },
+  'POST /inbound/tickets/search': {
+    '401': 'Chave inválida',
+    '422': 'Filtro inválido',
+    '503': 'Chave de entrada não configurada',
+  },
+  'POST /inbound/text/improve': {
+    '401': 'Chave inválida',
+    '422': 'Texto inválido ou IA não indicada',
+    '503': 'Chave de entrada não configurada ou a IA não respondeu',
+  },
   'GET /tickets/:id': { '404': 'Ticket não encontrado' },
   'PATCH /tickets/:id': { '404': 'Ticket não encontrado', '422': 'Escola não encontrada' },
   'DELETE /tickets/:id': { '404': 'Ticket não encontrado' },
@@ -172,6 +191,7 @@ export default fp<OpenApiPluginOptions>(
           { name: 'health', description: 'Verificação de disponibilidade' },
           { name: 'auth', description: 'Login, sessão e logout' },
           { name: 'users', description: 'Gestão de usuários' },
+          { name: 'schools', description: 'Escolas (somente leitura, para seleção)' },
           { name: 'tickets', description: 'Tickets de suporte' },
           { name: 'posts', description: 'Posts (interações) dos tickets' },
         ],

@@ -61,29 +61,26 @@ Para simular o Lambda + API Gateway: `cp env.local.json.example env.local.json` 
 
 ## Modelo de dados
 
-Migrations em `src/database/migrations/` (Umzug), aplicadas com `npm run db:migrate`.
+Migrations em `src/database/migrations/` (Umzug), aplicadas com `npm run db:migrate` na conexão `DB_*`. Rode de novo apontando `DB_*` para hom e para prod antes de usar esses ambientes.
+
+A API escolhe o banco pela URL: `localhost` usa `DB_*`, `https://suporte-t.schoolguardian.app` usa `HOM_DB_*` e `https://suporte.schoolguardian.app` usa `PROD_DB_*` (em produção, se `PROD_DB_*` estiver vazio, cai em `DB_*`). O token de um ambiente não vale no outro.
 
 | Migration                                             | Descrição                                                 |
 | ----------------------------------------------------- | --------------------------------------------------------- |
-| `20261001000000-create-users`                         | tabela `users`                                            |
-| `20261001000100-add-login-to-users`                   | coluna `login` (única) em `users`                         |
-| `20261001000200-create-tickets`                       | tabela `tickets`                                          |
-| `20261001000300-create-posts`                         | tabela `posts` (FK para `tickets` e `users`)              |
-| `20261001000400-create-schools`                       | tabela `schools`                                          |
-| `20261001000500-alter-tickets-priority-and-school-fk` | `priority` → BOOLEAN; FK `tickets.school_id → schools.id` |
+| `20261002000000-create-fsfadm-tickets-and-posts`     | tabelas `fsfadm_tickets` e `fsfadm_posts`. `school_id` e `user_id` apontam para `fsfadm_Escolas` e `fsfadm_Usuarios` só na aplicação, sem FOREIGN KEY |
+| `20261007200000-add-is-internal-to-fsfadm-posts`      | coluna `is_internal` em `fsfadm_posts`. `1` é nota interna, lida só pelo Suporte SG |
+| `20261007220000-add-school-user-to-tickets-and-posts` | `school_user_id` e `school_user_name` em `fsfadm_tickets` e `fsfadm_posts` (usuário do CMS, sem FK) |
 
-**users** — `id` (UUID), `name`, `email` (único), `login` (único), `password_hash`, `role`,
-`active`, `token_version`, `last_login_at`, `created_at`, `updated_at`, `deleted_at`.
+**fsfadm_Usuarios** — tabela do outro sistema, somente leitura. Campos usados: `id`, `nome`, `email`, `senha`, `tipo`, `dtCriacao`, `dtUltLogin`.
 
-**schools** — `id` (INT UNSIGNED, auto increment; aceita ids explícitos para espelhar o School
-Guardian), `name`, `created_at`, `updated_at`.
+**fsfadm_Escolas** — tabela do outro sistema, somente leitura. O model usa `id` e `nomeEscola`.
 
-**tickets**
+**fsfadm_tickets**
 
 | Coluna                  | Tipo         | Campo de negócio                             |
 | ----------------------- | ------------ | -------------------------------------------- |
 | `id`                    | UUID         | id                                           |
-| `school_id`             | INT UNSIGNED | id escola (FK `schools`, ON DELETE RESTRICT) |
+| `school_id`             | INT UNSIGNED | id em `fsfadm_Escolas` (sem FK) |
 | `status`                | VARCHAR(30)  | status                                       |
 | `dev_status`            | VARCHAR(30)  | status dev                                   |
 | `entry_type`            | VARCHAR(30)  | tipo entrada                                 |
@@ -94,6 +91,8 @@ Guardian), `name`, `created_at`, `updated_at`.
 | `response_at`           | DATETIME     | data resposta                                |
 | `technical_response_at` | DATETIME     | data resposta técnica                        |
 | `school_responsible`    | VARCHAR(120) | resp. escola                                 |
+| `school_user_id`        | INT UNSIGNED | id em `usersWEB` do colégio (sem FK)         |
+| `school_user_name`      | VARCHAR(191) | nome desse usuário na criação                |
 | `created_at`            | DATETIME     | data criação                                 |
 | `updated_at`            | DATETIME     | data alteração                               |
 
@@ -102,8 +101,12 @@ Os campos `status`, `dev_status`, `entry_type` e `sla_type` guardam **códigos**
 ENUM/CHECK no MySQL — novos valores não exigem migration. Os rótulos para exibição vêm de
 `GET /tickets/options`. `error_type` e `school_responsible` são texto livre.
 
-**posts** — `id` (UUID), `ticket_id` (FK `tickets`, `ON DELETE CASCADE`), `user_id`
-(FK `users`, autor), `content` (TEXT), `created_at`, `updated_at`.
+**fsfadm_posts** — `id` (UUID), `ticket_id` (FK `fsfadm_tickets`, `ON DELETE CASCADE`), `user_id`
+(id em `fsfadm_Usuarios`, sem FK), `content` (TEXT), `is_internal` (nota interna, só o Suporte SG),
+`school_user_id` / `school_user_name` (usuário do CMS que enviou a mensagem), `created_at`, `updated_at`.
+
+O CMS só lista e abre chamado com `school_id` da escola logada. O id de `usersWEB` não separa colégio:
+ele se repete em cada banco.
 
 ## Endpoints
 
@@ -192,8 +195,10 @@ Manager, RDS MySQL acessível pelas subnets informadas.
 ```bash
 npm run sam:build
 sam deploy --guided \
-  --parameter-overrides Stage=dev DbHost=<rds-endpoint> DbSecretArn=<arn> JwtSecretArn=<arn> \
-  SubnetIds=<subnet-a,subnet-b> SecurityGroupIds=<sg> CorsOrigins=https://app.schoolguardian.app
+  --parameter-overrides Stage=prod DbHost=<rds-local-ou-padrao> DbSecretArn=<arn> JwtSecretArn=<arn> \
+  ProdDbHost=<rds-prod> ProdDbSecretArn=<arn> HomDbHost=<rds-hom> HomDbSecretArn=<arn> \
+  SubnetIds=<subnet-a,subnet-b> SecurityGroupIds=<sg> \
+  CorsOrigins=https://suporte.schoolguardian.app,https://suporte-t.schoolguardian.app
 ```
 
 As migrations não rodam dentro do Lambda da API; execute `npm run db:migrate` apontando para o

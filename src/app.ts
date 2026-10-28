@@ -7,16 +7,27 @@ import {
 } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { AppConfig } from './config/env';
+import { defaultModels, runWithDatabase } from './database/context';
+import { connectionFor, resolveDatabaseTarget } from './database/routing';
+import { modelsFor } from './database/sequelize';
+import { AiService } from './modules/ai/ai.service';
+import { SequelizeAiSettingsRepository } from './modules/ai/ai.repository';
+import { aiRoutes } from './modules/ai/ai.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import {
   SequelizeSchoolRepository,
   type SchoolRepository,
 } from './modules/schools/school.repository';
+import { schoolRoutes } from './modules/schools/school.routes';
+import { SchoolService } from './modules/schools/school.service';
 import { SequelizePostRepository, type PostRepository } from './modules/tickets/post.repository';
 import {
   SequelizeTicketRepository,
   type TicketRepository,
 } from './modules/tickets/ticket.repository';
+import { registerPublicTicketImages } from './modules/tickets/image.routes';
+import { inboundRoutes } from './modules/inbound/inbound.routes';
+import { InboundService, readInboundSecret } from './modules/inbound/inbound.service';
 import { ticketRoutes } from './modules/tickets/ticket.routes';
 import { TicketService } from './modules/tickets/ticket.service';
 import { SequelizeUserRepository, type UserRepository } from './modules/users/user.repository';
@@ -26,6 +37,7 @@ import authPlugin from './plugins/auth';
 import errorHandler from './plugins/error-handler';
 import openApiPlugin, { type OpenApiPluginOptions } from './plugins/openapi';
 import securityPlugin from './plugins/security';
+import { Errors } from './shared/errors';
 
 export interface BuildAppOptions {
   config: AppConfig;
@@ -38,6 +50,11 @@ export interface BuildAppOptions {
   logger?: FastifyServerOptions['logger'];
   /** Registra o gerador OpenAPI (usado por `npm run docs:openapi`; desligado em produção). */
   openapi?: OpenApiPluginOptions;
+  /**
+   * Abre o pool do banco escolhido pela URL. Testes com repositório em memória
+   * desligam isso e só registram o ambiente da requisição.
+   */
+  manageDatabases?: boolean;
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
@@ -59,6 +76,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           '*.password',
           '*.currentPassword',
           '*.accessToken',
+          '*.hash',
         ],
         censor: '[REDACTED]',
       },
@@ -80,8 +98,44 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(securityPlugin, { config });
   await app.register(authPlugin, { config, userRepository, hasher: options.hasher });
 
+  app.addHook('onRequest', (request, _reply, done) => {
+    if (request.method === 'OPTIONS') {
+      done();
+      return;
+    }
+    const path = (request.url.split('?')[0] ?? '').replace(/\/+$/, '') || '/';
+    if (path === '/health') {
+      done();
+      return;
+    }
+
+    const target = resolveDatabaseTarget({
+      host: request.headers.host,
+      origin: request.headers.origin,
+    });
+    if (!target) {
+      done(Errors.badRequest('Endereço não corresponde a um ambiente conhecido'));
+      return;
+    }
+
+    if (!connectionFor(config, target)) {
+      done(Errors.serviceUnavailable('Banco deste ambiente não está configurado'));
+      return;
+    }
+
+    try {
+      const models = options.manageDatabases === false ? defaultModels : modelsFor(config, target);
+      runWithDatabase(target, models, () => {
+        done();
+      });
+    } catch (error) {
+      done(error as Error);
+    }
+  });
+
   const userService = new UserService(userRepository, options.hasher);
-  const ticketService = new TicketService(ticketRepository, postRepository, schoolRepository);
+  const schoolService = new SchoolService(schoolRepository);
+  const ticketService = new TicketService(ticketRepository, postRepository, schoolRepository, userRepository);
 
   app.get(
     '/health',
@@ -97,7 +151,24 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   );
   await app.register(authRoutes, { prefix: '/auth', config, userService });
   await app.register(userRoutes, { prefix: '/users', userService });
+  await app.register(schoolRoutes, { prefix: '/schools', schoolService });
+  await registerPublicTicketImages(app);
   await app.register(ticketRoutes, { prefix: '/tickets', ticketService });
+  const aiService = new AiService(new SequelizeAiSettingsRepository());
+  await app.register(inboundRoutes, {
+    prefix: '/inbound',
+    inboundService: new InboundService(
+      ticketRepository,
+      postRepository,
+      schoolRepository,
+      () => readInboundSecret(config),
+      (text, aiId) => aiService.improveText(text, aiId),
+    ),
+  });
+  await app.register(aiRoutes, {
+    prefix: '/ai',
+    aiService,
+  });
 
   return app;
 }

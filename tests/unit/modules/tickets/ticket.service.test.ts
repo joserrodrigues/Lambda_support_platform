@@ -25,10 +25,10 @@ import {
   InMemoryTicketRepository,
 } from '../../../helpers/fakes';
 
-const admin: AuthenticatedUser = { id: randomUUID(), role: 'admin' };
-const agent: AuthenticatedUser = { id: randomUUID(), role: 'agent' };
-const otherAgent: AuthenticatedUser = { id: randomUUID(), role: 'agent' };
-const requester: AuthenticatedUser = { id: randomUUID(), role: 'requester' };
+const admin: AuthenticatedUser = { id: 9001, role: 'admin' };
+const agent: AuthenticatedUser = { id: 9002, role: 'agent' };
+const otherAgent: AuthenticatedUser = { id: 9003, role: 'agent' };
+const requester: AuthenticatedUser = { id: 9004, role: 'requester' };
 
 const PUBLIC_TICKET_KEYS = [
   'createdAt',
@@ -40,11 +40,15 @@ const PUBLIC_TICKET_KEYS = [
   'responseAt',
   'schoolId',
   'schoolResponsible',
+  'schoolUserId',
+  'schoolUserName',
   'slaType',
   'status',
   'supportLevel2',
   'technicalResponseAt',
+  'title',
   'updatedAt',
+  'viewedAt',
 ];
 
 function setup() {
@@ -94,7 +98,7 @@ describe('toPublicTicket', () => {
 
 describe('toPublicPost', () => {
   it('should expose only id and name of the author and hide userId', () => {
-    const author = { id: randomUUID(), name: 'Ana', email: 'ana@escola.com' };
+    const author = { id: 42, name: 'Ana' };
     const post = makePost({ userId: author.id, author });
 
     const result = toPublicPost(post);
@@ -126,7 +130,7 @@ describe('TicketService', () => {
       ['getById', (s: TicketService) => s.getById(ticketId, requester)],
       ['update', (s: TicketService) => s.update(ticketId, { status: 'done' }, requester)],
       ['remove', (s: TicketService) => s.remove(ticketId, requester)],
-      ['createPost', (s: TicketService) => s.createPost(ticketId, { content: 'x' }, requester)],
+      ['createPost', (s: TicketService) => s.createPost(ticketId, { content: 'x', isInternal: false }, requester)],
       [
         'listPosts',
         (s: TicketService) => s.listPosts(ticketId, { page: 1, pageSize: 20 }, requester),
@@ -179,6 +183,7 @@ describe('TicketService', () => {
 
       expect(create).toHaveBeenCalledWith({
         schoolId: 1,
+        title: null,
         status: 'aguardando',
         devStatus: null,
         entryType: 'email',
@@ -189,6 +194,8 @@ describe('TicketService', () => {
         responseAt: null,
         technicalResponseAt: null,
         schoolResponsible: null,
+        schoolUserId: null,
+        schoolUserName: null,
       });
       expect(result).toMatchObject({ schoolId: 1, status: 'aguardando', devStatus: null });
       expect(Object.keys(result).sort()).toEqual(PUBLIC_TICKET_KEYS);
@@ -215,6 +222,17 @@ describe('TicketService', () => {
 
       expect(result).toMatchObject({ ...input, id: expect.any(String) as string });
       await expect(tickets.findById(result.id)).resolves.toMatchObject(input);
+    });
+
+    it('should return 422 when support tries to create a CMS entry', async () => {
+      const { service, tickets } = setup();
+      const create = jest.spyOn(tickets, 'create');
+
+      await expect(service.create(createInput({ entryType: 'cms' }), agent)).rejects.toMatchObject({
+        statusCode: 422,
+        message: 'A entrada CMS só pode ser gravada pelo CMS.',
+      });
+      expect(create).not.toHaveBeenCalled();
     });
 
     it('should return 422 when the school does not exist', async () => {
@@ -280,10 +298,12 @@ describe('TicketService', () => {
       const { service, tickets } = setup();
       const ticket = tickets.seed({ status: 'done' });
 
-      await expect(service.getById(ticket.id, agent)).resolves.toMatchObject({
-        id: ticket.id,
-        status: 'done',
-      });
+      const before = ticket.updatedAt;
+      const result = await service.getById(ticket.id, agent);
+
+      expect(result).toMatchObject({ id: ticket.id, status: 'done' });
+      expect(result.viewedAt).toBeInstanceOf(Date);
+      expect(result.updatedAt).toEqual(before);
     });
 
     it('should return 404 when the ticket does not exist', async () => {
@@ -335,6 +355,18 @@ describe('TicketService', () => {
       await service.update(ticket.id, input, admin);
 
       expect(update).toHaveBeenCalledWith(ticket.id, input);
+    });
+
+    it('should return 422 when changing the entry of a CMS ticket', async () => {
+      const { service, tickets } = setup();
+      const ticket = tickets.seed({ entryType: 'cms' });
+      const update = jest.spyOn(tickets, 'update');
+
+      await expect(service.update(ticket.id, { entryType: 'email' }, agent)).rejects.toMatchObject({
+        statusCode: 422,
+        message: 'A entrada de um chamado vindo do CMS não pode ser alterada.',
+      });
+      expect(update).not.toHaveBeenCalled();
     });
 
     it('should clear optional fields when null is sent', async () => {
@@ -404,6 +436,61 @@ describe('TicketService', () => {
       expect(update).not.toHaveBeenCalled();
     });
 
+    it('should record an internal note when the visible status changes', async () => {
+      const tickets = new InMemoryTicketRepository();
+      const posts = new InMemoryPostRepository();
+      const schools = new InMemorySchoolRepository([1]);
+      const service = new TicketService(
+        tickets,
+        posts,
+        schools,
+        { findById: () => Promise.resolve({ name: 'Andre' }) },
+        () => new Date('2026-10-09T13:17:00.000Z'),
+      );
+      const ticket = tickets.seed({ status: 'aguardando', devStatus: null });
+
+      await service.update(ticket.id, { status: 'em_analise' }, agent);
+
+      const notes = [...posts.posts.values()];
+      expect(notes).toEqual([
+        expect.objectContaining({
+          ticketId: ticket.id,
+          userId: agent.id,
+          isInternal: true,
+          content: 'Andre mudou o status de Aguardando para Em análise em 09/10/2026 10:17',
+        }),
+      ]);
+    });
+
+    it('should record the move to aguardando cliente', async () => {
+      const tickets = new InMemoryTicketRepository();
+      const posts = new InMemoryPostRepository();
+      const schools = new InMemorySchoolRepository([1]);
+      const service = new TicketService(
+        tickets,
+        posts,
+        schools,
+        { findById: () => Promise.resolve({ name: 'Andre' }) },
+        () => new Date('2026-10-09T13:17:00.000Z'),
+      );
+      const ticket = tickets.seed({ status: 'em_analise', devStatus: null });
+
+      await service.update(ticket.id, { devStatus: 'aguardando_cliente' }, agent);
+
+      expect([...posts.posts.values()][0]?.content).toBe(
+        'Andre mudou o status de Em análise para Aguardando cliente em 09/10/2026 10:17',
+      );
+    });
+
+    it('should not record a note when the visible status stays the same', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed({ status: 'em_analise' });
+
+      await service.update(ticket.id, { priority: true }, agent);
+
+      expect(posts.posts.size).toBe(0);
+    });
+
     it('should return 404 when the ticket disappears during the update', async () => {
       const { service, tickets } = setup();
       const ticket = tickets.seed();
@@ -445,21 +532,29 @@ describe('TicketService', () => {
   });
 
   describe('createPost', () => {
+    const classificado = {
+      slaType: 'medio' as const,
+      errorType: 'BUG',
+      responseAt: new Date('2026-10-11T18:59:00.000Z'),
+    };
+
     it('should always use the authenticated actor as the author', async () => {
       const { service, tickets, posts } = setup();
-      const ticket = tickets.seed();
+      const ticket = tickets.seed(classificado);
       const create = jest.spyOn(posts, 'create');
 
-      const result = await service.createPost(ticket.id, { content: 'Olá' }, agent);
+      const result = await service.createPost(ticket.id, { content: 'Olá', isInternal: false }, agent);
 
       expect(create).toHaveBeenCalledWith({
         ticketId: ticket.id,
         userId: agent.id,
         content: 'Olá',
+        isInternal: false,
       });
       expect(result).toMatchObject({
         ticketId: ticket.id,
         content: 'Olá',
+        isInternal: false,
         author: { id: agent.id },
       });
       expect(result).not.toHaveProperty('userId');
@@ -470,9 +565,102 @@ describe('TicketService', () => {
       const create = jest.spyOn(posts, 'create');
 
       await expect(
-        service.createPost(randomUUID(), { content: 'Olá' }, agent),
+        service.createPost(randomUUID(), { content: 'Olá', isInternal: false }, agent),
       ).rejects.toMatchObject({ statusCode: 404, message: 'Ticket não encontrado' });
       expect(create).not.toHaveBeenCalled();
+    });
+
+    it('should store an internal note when requested', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed();
+      const create = jest.spyOn(posts, 'create');
+
+      const result = await service.createPost(
+        ticket.id,
+        { content: 'Nota da equipe', isInternal: true },
+        agent,
+      );
+
+      expect(create).toHaveBeenCalledWith({
+        ticketId: ticket.id,
+        userId: agent.id,
+        content: 'Nota da equipe',
+        isInternal: true,
+      });
+      expect(result.isInternal).toBe(true);
+    });
+
+    it('should keep the opening record of a new ticket before it is classified', async () => {
+      const { service, tickets } = setup();
+      const ticket = tickets.seed();
+
+      await expect(
+        service.createPost(ticket.id, { content: 'O que a escola relatou', isInternal: false }, agent),
+      ).resolves.toMatchObject({ content: 'O que a escola relatou', isInternal: false });
+    });
+
+    it('should refuse the first public reply until sla, error type and response date are set', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed();
+      posts.seed({ ticketId: ticket.id, userId: null, isInternal: false, content: '<p>Mensagem da escola</p>' });
+      const create = jest.spyOn(posts, 'create');
+
+      await expect(
+        service.createPost(ticket.id, { content: 'Olá', isInternal: false }, agent),
+      ).rejects.toMatchObject({ statusCode: 422 });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('should drop script tags and keep the visible text', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed(classificado);
+      const create = jest.spyOn(posts, 'create');
+
+      await service.createPost(
+        ticket.id,
+        { content: '<p>Olá</p><script>alert(1)</script>', isInternal: false },
+        agent,
+      );
+
+      expect(create).toHaveBeenCalledWith({
+        ticketId: ticket.id,
+        userId: agent.id,
+        content: '<p>Olá</p>',
+        isInternal: false,
+      });
+    });
+
+    it('should reject a post that is empty after sanitizing', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed(classificado);
+      const create = jest.spyOn(posts, 'create');
+
+      await expect(
+        service.createPost(ticket.id, { content: '<script>alert(1)</script>', isInternal: false }, agent),
+      ).rejects.toMatchObject({ statusCode: 422 });
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('should store the stable image address and drop the signature', async () => {
+      const { service, tickets, posts } = setup();
+      const ticket = tickets.seed(classificado);
+      const create = jest.spyOn(posts, 'create');
+      const signed =
+        'https://d2j2x01e904yhl.cloudfront.net/FSFAPI/supportTickets/a.jpg?X-Amz-Expires=1800';
+
+      await service.createPost(
+        ticket.id,
+        { content: `<img src="${signed}" alt="foto">`, isInternal: false },
+        agent,
+      );
+
+      expect(create).toHaveBeenCalledWith({
+        ticketId: ticket.id,
+        userId: agent.id,
+        content:
+          '<img src="https://d2j2x01e904yhl.cloudfront.net/FSFAPI/supportTickets/a.jpg" alt="foto">',
+        isInternal: false,
+      });
     });
   });
 

@@ -7,23 +7,36 @@ import {
   type Sequelize,
 } from 'sequelize';
 
-/** Escola (espelha o id da escola no School Guardian). */
+/**
+ * Escola já existente em `fsfadm_Escolas`. O model declara só `id` e `nomeEscola`
+ * para não ler nem gravar as demais colunas da tabela compartilhada.
+ */
 export class School extends Model<InferAttributes<School>, InferCreationAttributes<School>> {
   declare id: CreationOptional<number>;
   declare name: string;
-  declare createdAt: CreationOptional<Date>;
-  declare updatedAt: CreationOptional<Date>;
 }
 
-export function initSchoolModel(sequelize: Sequelize): typeof School {
-  School.init(
+export function initSchoolModel(sequelize: Sequelize, model: typeof School = School): typeof School {
+  model.init(
     {
       id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-      name: { type: DataTypes.STRING(160), allowNull: false },
-      createdAt: DataTypes.DATE,
-      updatedAt: DataTypes.DATE,
+      name: { type: DataTypes.STRING(255), allowNull: false, field: 'nomeEscola' },
     },
-    { sequelize, tableName: 'schools' },
+    {
+      sequelize,
+      tableName: 'fsfadm_Escolas',
+      freezeTableName: true,
+      underscored: false,
+      timestamps: false,
+    },
   );
-  return School;
+  const blockWrite = (): never => {
+    throw new Error('fsfadm_Escolas é do outro sistema: este serviço não grava nela');
+  };
+  model.addHook('beforeSave', blockWrite);
+  model.addHook('beforeDestroy', blockWrite);
+  model.addHook('beforeBulkCreate', blockWrite);
+  model.addHook('beforeBulkUpdate', blockWrite);
+  model.addHook('beforeBulkDestroy', blockWrite);
+  return model;
 }

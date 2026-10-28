@@ -19,12 +19,17 @@ const schoolIdSchema = z.number().int().positive().max(4_294_967_295);
 const dateTimeSchema = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
 const errorTypeSchema = z.string().trim().min(1).max(50);
 const schoolResponsibleSchema = z.string().trim().min(1).max(120);
+const titleSchema = z.string().trim().min(1).max(191);
+/** Id de `usersWEB` no banco do colégio. */
+const schoolUserIdSchema = z.number().int().positive().max(4_294_967_295);
+const schoolUserNameSchema = z.string().trim().min(1).max(191);
 const uuidSchema = z.uuid();
 
 // `strictObject` rejeita campos desconhecidos (proteção contra mass assignment - OWASP API3).
 export const createTicketBodySchema = z
   .strictObject({
     schoolId: schoolIdSchema,
+    title: titleSchema.nullish(),
     status: statusSchema.default(DEFAULT_TICKET_STATUS),
     devStatus: devStatusSchema.nullish(),
     entryType: entryTypeSchema,
@@ -35,6 +40,8 @@ export const createTicketBodySchema = z
     responseAt: dateTimeSchema.nullish(),
     technicalResponseAt: dateTimeSchema.nullish(),
     schoolResponsible: schoolResponsibleSchema.nullish(),
+    schoolUserId: schoolUserIdSchema.nullish(),
+    schoolUserName: schoolUserNameSchema.nullish(),
   })
   .meta({ id: 'CreateTicketRequest' });
 
@@ -42,6 +49,7 @@ export const createTicketBodySchema = z
 export const updateTicketBodySchema = z
   .strictObject({
     schoolId: schoolIdSchema.optional(),
+    title: titleSchema.nullable().optional(),
     status: statusSchema.optional(),
     devStatus: devStatusSchema.nullable().optional(),
     entryType: entryTypeSchema.optional(),
@@ -52,6 +60,8 @@ export const updateTicketBodySchema = z
     responseAt: dateTimeSchema.nullable().optional(),
     technicalResponseAt: dateTimeSchema.nullable().optional(),
     schoolResponsible: schoolResponsibleSchema.nullable().optional(),
+    schoolUserId: schoolUserIdSchema.nullable().optional(),
+    schoolUserName: schoolUserNameSchema.nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: 'Informe ao menos um campo para atualizar',
@@ -86,10 +96,16 @@ export const listPostsQuerySchema = z.strictObject({
 const postContentSchema = z.string().trim().min(1).max(10_000);
 
 export const createPostBodySchema = z
-  .strictObject({ content: postContentSchema })
+  .strictObject({
+    content: postContentSchema,
+    isInternal: z.boolean().default(false),
+  })
   .meta({ id: 'CreatePostRequest' });
 export const updatePostBodySchema = z
-  .strictObject({ content: postContentSchema })
+  .strictObject({
+    content: postContentSchema,
+    isInternal: z.boolean().optional(),
+  })
   .meta({ id: 'UpdatePostRequest' });
 
 // Schemas de resposta explícitos: somente estes campos são serializados (OWASP API3).
@@ -97,6 +113,7 @@ export const publicTicketSchema = z
   .object({
     id: z.uuid(),
     schoolId: z.number().int(),
+    title: z.string().nullable(),
     status: statusSchema,
     devStatus: devStatusSchema.nullable(),
     entryType: entryTypeSchema,
@@ -107,6 +124,9 @@ export const publicTicketSchema = z
     responseAt: z.date().nullable(),
     technicalResponseAt: z.date().nullable(),
     schoolResponsible: z.string().nullable(),
+    schoolUserId: z.number().int().nullable(),
+    schoolUserName: z.string().nullable(),
+    viewedAt: z.date().nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
   })
@@ -130,7 +150,10 @@ export const publicPostSchema = z
     id: z.uuid(),
     ticketId: z.uuid(),
     content: z.string(),
-    author: z.object({ id: z.uuid(), name: z.string() }).nullable(),
+    isInternal: z.boolean(),
+    schoolUserId: z.number().int().nullable(),
+    schoolUserName: z.string().nullable(),
+    author: z.object({ id: z.number().int().positive(), name: z.string() }).nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
   })

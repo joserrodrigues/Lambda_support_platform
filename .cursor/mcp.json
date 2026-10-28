@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mysql": {
+      "url": "http://host.docker.internal:8932/mcp",
+      "headers": {
+        "Authorization": "Bearer fsfweb-local-mcp"
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@ import type {
 export interface TicketEntity {
   id: string;
   schoolId: number;
+  title: string | null;
   status: TicketStatus;
   devStatus: TicketDevStatus | null;
   entryType: TicketEntryType;
@@ -19,11 +20,16 @@ export interface TicketEntity {
   responseAt: Date | null;
   technicalResponseAt: Date | null;
   schoolResponsible: string | null;
+  /** Usuário do CMS (`usersWEB`) que criou o chamado. Null se nasceu no Suporte SG. */
+  schoolUserId: number | null;
+  schoolUserName: string | null;
+  /** Null até alguém da equipe abrir o chamado no suporte. */
+  viewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type CreateTicketData = Omit<TicketEntity, 'id' | 'createdAt' | 'updatedAt'>;
+export type CreateTicketData = Omit<TicketEntity, 'id' | 'createdAt' | 'updatedAt' | 'viewedAt'>;
 export type UpdateTicketData = Partial<CreateTicketData>;
 
 export interface TicketFilters {
@@ -34,10 +40,12 @@ export interface TicketFilters {
   slaType?: TicketSlaType;
   priority?: boolean;
   supportLevel2?: boolean;
+  /** Criado ou alterado a partir deste instante. */
+  since?: Date;
 }
 
 export interface PostAuthor {
-  id: string;
+  id: number;
   name: string;
 }
 
@@ -45,8 +53,13 @@ export interface PostAuthor {
 export interface PostEntity {
   id: string;
   ticketId: string;
-  userId: string | null;
+  userId: number | null;
   content: string;
+  /** Nota interna: só o Suporte SG exibe. O FSFWEB ignora estes posts. */
+  isInternal: boolean;
+  /** Usuário do CMS que enviou a mensagem. Null quando o autor é o suporte. */
+  schoolUserId: number | null;
+  schoolUserName: string | null;
   author: PostAuthor | null;
   createdAt: Date;
   updatedAt: Date;
@@ -54,12 +67,17 @@ export interface PostEntity {
 
 export interface CreatePostData {
   ticketId: string;
-  userId: string;
+  /** Null quando a mensagem veio da escola, do e-mail ou do WhatsApp. */
+  userId: number | null;
   content: string;
+  isInternal: boolean;
+  schoolUserId?: number | null;
+  schoolUserName?: string | null;
 }
 
 export interface UpdatePostData {
   content: string;
+  isInternal?: boolean;
 }
 
 export interface Pagination {

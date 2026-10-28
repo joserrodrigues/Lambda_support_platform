@@ -1,3 +1,4 @@
+import type { DatabaseTarget } from '../../database/routing';
 import type { UserRole } from '../users/user.model';
 
 /** Claims customizadas do access token (iss, aud, exp, iat são adicionadas na assinatura). */
@@ -9,6 +10,8 @@ export interface AccessTokenClaims {
   /** Momento (epoch em segundos) do login original, para limitar a duração total da sessão. */
   auth_time: number;
   jti: string;
+  /** Ambiente do banco em que o login aconteceu. Ausente só fora de uma requisição. */
+  env?: DatabaseTarget;
 }
 
 export interface AccessTokenPayload extends AccessTokenClaims {

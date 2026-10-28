@@ -23,6 +23,7 @@ export interface TestContext {
 export async function createTestApp(config: Partial<AppConfig> = {}): Promise<TestContext> {
   const repo = new InMemoryUserRepository();
   const posts = new InMemoryPostRepository((userId) => {
+    if (userId == null) return null;
     const user = repo.users.get(userId);
     return user ? { id: user.id, name: user.name } : null;
   });
@@ -39,6 +40,7 @@ export async function createTestApp(config: Partial<AppConfig> = {}): Promise<Te
     schoolRepository: schools,
     hasher: fakeHasher,
     logger: false,
+    manageDatabases: false,
   });
   await app.ready();
   return { app, repo, tickets, posts, schools };
@@ -47,7 +49,7 @@ export async function createTestApp(config: Partial<AppConfig> = {}): Promise<Te
 export async function loginAs(
   ctx: TestContext,
   role: UserRole = 'requester',
-): Promise<{ token: string; userId: string }> {
+): Promise<{ token: string; userId: number }> {
   const password = 'senha-super-forte';
   const user = ctx.repo.seed({ role, passwordHash: `hashed:${password}` });
   const res = await ctx.app.inject({

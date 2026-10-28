@@ -61,14 +61,14 @@ export class UserService {
     return { data: rows.map(toPublicUser), meta: { page, pageSize, total: count } };
   }
 
-  async getById(id: string, actor: AuthenticatedUser): Promise<PublicUser> {
+  async getById(id: number, actor: AuthenticatedUser): Promise<PublicUser> {
     this.assertCanAccess(id, actor);
     const user = await this.users.findById(id);
     if (!user) throw Errors.notFound('Usuário não encontrado');
     return toPublicUser(user);
   }
 
-  async update(id: string, input: UpdateUserBody, actor: AuthenticatedUser): Promise<PublicUser> {
+  async update(id: number, input: UpdateUserBody, actor: AuthenticatedUser): Promise<PublicUser> {
     this.assertCanAccess(id, actor);
     const isAdmin = actor.role === 'admin';
     const isSelf = actor.id === id;
@@ -126,14 +126,14 @@ export class UserService {
     return toPublicUser(updated);
   }
 
-  async remove(id: string, actor: AuthenticatedUser): Promise<void> {
+  async remove(id: number, actor: AuthenticatedUser): Promise<void> {
     if (actor.id === id) throw Errors.badRequest('Não é permitido excluir o próprio usuário');
     const deleted = await this.users.softDelete(id);
     if (!deleted) throw Errors.notFound('Usuário não encontrado');
   }
 
   /** Proteção contra BOLA (OWASP API1): não-admin só acessa o próprio registro. */
-  private assertCanAccess(id: string, actor: AuthenticatedUser): void {
+  private assertCanAccess(id: number, actor: AuthenticatedUser): void {
     if (actor.role !== 'admin' && actor.id !== id) {
       throw Errors.forbidden();
     }
