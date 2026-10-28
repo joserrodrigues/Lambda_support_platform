@@ -26,3 +26,4 @@ Use o agente de backend para código em `src/` e o de testes logo em seguida par
 - Toda rota com schemas Zod de entrada (`z.strictObject`) e resposta.
 - Autorização no service; erros via `Errors.*`.
 - Schema do banco somente por migrations (`src/database/migrations/`).
+
